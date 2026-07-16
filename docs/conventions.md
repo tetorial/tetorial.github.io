@@ -26,9 +26,8 @@ tetorial/
 │   ├── adapter-tetrio/         # @tetorial/adapter-tetrio — triangle 상태 → notes Snapshot
 │   └── sim/                    # @tetorial/sim      — 시뮬레이터 코어 (노트/페이지 상태 머신, UI 무관)
 ├── docs/
-│   ├── decisions.md            # 프로젝트 결정 로그
-│   ├── conventions.md          # 이 문서
-│   └── specs/                  # 모듈별 명세 (모듈명.md — engine.md, sim.md 등)
+│   ├── DECISIONS.md            # 프로젝트 결정 로그
+│   └── conventions.md          # 이 문서 (명세는 main에 두지 않는다 — WORKFLOW §4)
 ├── fixtures/                   # 골든 테스트용 리플레이 샘플 (§4 주의사항)
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
@@ -50,7 +49,7 @@ engine → types만. 그 외 의존성 0 (엔진 명세 §3)
 types → 의존성 0 (검증기 포함 자급자족)
 ```
 
-- 역방향·순환 의존 금지. 특히 **engine/sim/types에서 triangle(@haelp/teto) 임포트 금지** (decisions D-2).
+- 역방향·순환 의존 금지. 특히 **engine/sim/types에서 triangle(@haelp/teto) 임포트 금지** (D-11).
 
 ## 2. 패키지 규약
 
@@ -74,7 +73,7 @@ types → 의존성 0 (검증기 포함 자급자족)
 - 러너: **Vitest** (workspace 모드, 루트에서 `pnpm test`로 전체 실행).
 - 위치: 각 패키지 `src/**/*.test.ts` (colocate).
 - **수용 기준 추적성**: 명세의 수용 기준 ID를 테스트 이름에 명시한다. 예: `describe("E-1 결정론", ...)`, `it("A-3 counters -1 규약", ...)`. 리뷰어(총괄)는 이 ID로 완료를 대조한다.
-- 골든 테스트 fixture: `fixtures/`에 배치, 테스트에서 상대 경로로 로드. 커밋된 fixture는 **익명화본**이다(D-16 — `tools/anonymize-replay.mjs`로 유저명·ID 치환, 게임 데이터 무수정). 새 fixture 추가는 소유자 제공·승인 + 익명화 도구 경유 필수. 에이전트가 임의의 타인 리플레이나 원본(미익명화) 리플레이를 커밋하는 것을 금지한다. fixture 의존 테스트는 부재 시 skip 패턴 유지(fixture 없는 환경 대비).
+- 골든 테스트 fixture: `fixtures/`에 배치, 테스트에서 상대 경로로 로드. 커밋된 fixture는 **익명화본**이다(D-6 — `tools/anonymize-replay.mjs`로 유저명·ID 치환, 게임 데이터 무수정). 새 fixture 추가는 소유자 제공·승인 + 익명화 도구 경유 필수. 에이전트가 임의의 타인 리플레이나 원본(미익명화) 리플레이를 커밋하는 것을 금지한다. fixture 의존 테스트는 부재 시 skip 패턴 유지(fixture 없는 환경 대비).
 - triangle 대조 테스트(E-3, E-4, A-1 등)는 `@haelp/teto`를 devDependency로 쓸 수 있다 — 단 대조 대상 패키지(engine)의 런타임 의존이 아닌 테스트 전용임을 유지.
 
 ## 5. 에이전트 워크플로우
@@ -83,16 +82,16 @@ types → 의존성 0 (검증기 포함 자급자족)
 2. **작업 경계**: 담당 패키지 디렉터리 안에서만 수정한다. 다음은 총괄 승인 없이 수정 금지: `packages/types`, `docs/`, 루트 설정 파일, 타 패키지.
 3. **모호성 처리**: 명세가 모호하거나 명세 간 충돌을 발견하면 **임의로 결정하지 말고**, 담당 패키지에 `QUESTIONS.md`를 만들어 질문을 남기고 해당 부분을 보류한 채 나머지를 진행한다. 총괄이 명세를 개정한 뒤 재개한다.
 4. **완료 정의 (DoD)**: ① 명세의 수용 기준 테스트 전부 통과 ② `pnpm lint` · `pnpm typecheck` · `pnpm test` 루트 통과 ③ 패키지 README에 공개 API 사용 예시 갱신 ④ QUESTIONS.md 잔여 항목 없음(또는 보류 사유 명시).
-5. **커밋/PR**: Conventional Commits (`feat(engine): ...`, `fix(sim): ...`). PR 1개 = 수용 기준의 응집된 묶음 1개. PR 본문에 충족한 수용 기준 ID를 나열한다. **현 운영(D-17)**: 원격 PR 대신 총괄 로컬 게이트 리뷰 → main 직push. 커밋 메시지·묶음 규칙은 동일하게 적용하고, PR 절차는 원격 협업 도입 시 재론.
-6. **병렬 세션 격리 (D-17)**: 같은 웨이브의 병렬 작업은 세션마다 `git worktree`로 체크아웃을 분리해 자기 브랜치에서 작업한다. worktree 위치는 리포 내부 `.worktrees/<이름>/` (gitignore·eslint·prettier 제외 등재됨) — 총괄이 생성·정리한다. 부득이 한 체크아웃을 공유하면 커밋·브랜치 조작을 직렬화한다(먼저 끝난 세션이 대기). 유일한 공유 파일인 `pnpm-lock.yaml`의 충돌은 총괄이 병합 시 해소한다.
+5. **커밋/PR**: Conventional Commits (`feat(engine): ...`, `fix(sim): ...`). PR 1개 = 수용 기준의 응집된 묶음 1개. PR 본문에 충족한 수용 기준 ID를 나열한다. **현 운영**: 원격 PR 대신 총괄 로컬 게이트 리뷰 → main 직push. 커밋 메시지·묶음 규칙은 동일하게 적용하고, PR 절차는 원격 협업 도입 시 재론.
+6. **병렬 세션 격리 (WORKFLOW §7 참조)**: 같은 웨이브의 병렬 작업은 세션마다 `git worktree`로 체크아웃을 분리해 자기 브랜치에서 작업한다. worktree는 bare 저장소 구조로 작업 디렉터리 밖에 둔다(WORKFLOW §7) — 총괄이 생성·정리한다. (`.gitignore` 등의 `.worktrees/` 등재는 과거 리포 내부 방식의 잔재로, 무해하여 유지.) 부득이 한 체크아웃을 공유하면 커밋·브랜치 조작을 직렬화한다(먼저 끝난 세션이 대기). 유일한 공유 파일인 `pnpm-lock.yaml`의 충돌은 총괄이 병합 시 해소한다.
 7. **금지사항 요약**: 명세에 없는 공개 API 추가(제안은 QUESTIONS.md로) / 승인 없는 런타임 의존성 / 의존 방향 위반 / `Math.random`·`Date`의 결정론 패키지(engine, sim) 내 사용 / 시크릿·토큰의 코드·로그 노출 / localStorage 직접 접근(apps/web의 storage 유틸 경유).
 
 ## 6. CI/CD (GitHub Actions)
 
 - **PR 워크플로우** (`ci.yml`): checkout → pnpm 캐시 → `pnpm install --frozen-lockfile` → `pnpm lint && pnpm typecheck && pnpm test`. 필수 통과(브랜치 보호).
 - **웹 배포** (`deploy-web.yml`): main push 시 `apps/web` 빌드 → GitHub Pages 배포(공식 actions/deploy-pages).
-  - **base path 규약 (D-13, D-18로 개정)**: 배포는 조직 루트 사이트(`tetorial/tetorial.github.io` → `https://tetorial.github.io/` 루트 서빙). `astro.config.mjs`에 `site: "https://tetorial.github.io"` + `base: "/"`(기본값). 내부 링크·에셋의 `import.meta.env.BASE_URL` 헬퍼 경유는 **계속 의무**(향후 하위 경로 이전 대비) — 루트 절대 경로 하드코딩은 여전히 금지.
-- **Worker 배포** (`deploy-worker.yml`): `workers/gist-proxy` 변경 시 wrangler-action으로 배포. 시크릿은 §7.
+  - **base path 규약 (D-17)**: 배포는 조직 루트 사이트(`tetorial/tetorial.github.io` → `https://tetorial.github.io/` 루트 서빙). `astro.config.mjs`에 `site: "https://tetorial.github.io"` + `base: "/"`(기본값). 내부 링크·에셋의 `import.meta.env.BASE_URL` 헬퍼 경유는 **계속 의무**(향후 하위 경로 이전 대비) — 루트 절대 경로 하드코딩은 여전히 금지.
+- **Worker 배포**: 자동화 워크플로 없음. 수동 `pnpm --filter @tetorial/gist-proxy deploy`(wrangler)로 배포한다. 자동화는 #20(I-1)에서 검토 중. 시크릿은 §7.
 - SPA성 라우트(딥링크 `?gist=...`)는 쿼리 파라미터 기반이므로 Pages의 404 리다이렉트 트릭이 불필요하다 — 경로 기반 동적 라우트를 새로 만들 때는 정적 생성 가능 여부를 먼저 검토한다.
 
 ## 7. 시크릿·환경 관리
