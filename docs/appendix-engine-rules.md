@@ -1,4 +1,4 @@
-# Tetorial 엔진 부록: 형상·킥·스핀·카운터 규범 (`docs/specs/appendix-engine-rules.md`) — v1
+# Tetorial 엔진 부록: 형상·킥·스핀·카운터 규범 (`docs/appendix-engine-rules.md`) — v1
 
 > 상태: v1 확정 · 대상: engine 에이전트 (명세 §5·§8의 "부록"이 이 문서)
 > 원천: @haelp/teto v4.2.7 (halp1/triangle, MIT) 소스 원문. **이 문서는 해석이 아니라 전사(轉寫)다** — 수식·알고리즘을 원문 그대로 옮겼고, 모호하면 원문(파일·행 표기)을 직접 확인한다. 최종 심판은 골든 테스트(E-3·E-4·E-5): 이 문서와 triangle 실행 결과가 다르면 **triangle이 이긴다.**

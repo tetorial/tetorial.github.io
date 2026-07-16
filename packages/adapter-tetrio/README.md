@@ -4,8 +4,7 @@
 `Snapshot`으로 변환**하는 단방향 어댑터. 산출물은 순수 데이터이며 `@tetorial/engine`에
 의존하지 않는다.
 
-- 명세(SSOT): [adapter-tetrio.md](../../docs/specs/adapter-tetrio.md) — 변환 표는 실측 확정(임의 변경 금지)
-- 실측 근거: [spike-triangle-report.md](../../docs/specs/spike-triangle-report.md) (@haelp/teto v4.2.7 기준)
+- 실측 근거: [2026-07-10-triangle-spike.md](../../docs/research/2026-07-10-triangle-spike.md) (@haelp/teto v4.2.7 기준)
 - 의존성: `@tetorial/types`(workspace) + `@haelp/teto`(**peerDependency** — 호출자 replay-tetrio가 공급)
 
 ## 공개 API

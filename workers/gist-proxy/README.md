@@ -3,7 +3,6 @@
 Cloudflare Worker. **GIST_PAT를 보유한 유일한 지점**으로서 Gist 생성·노트 쓰기·목록 조회를
 검증 후 프록시한다 (D-3). 게임 로직은 모른다 — 인증·구조·크기·무결성만 검증한다 (D-4).
 
-- 명세(SSOT): [docs/specs/gist-proxy.md](../../docs/specs/gist-proxy.md)
 - 런타임 의존성: `@tetorial/types`(zod 검증기)만. Web 표준 API만 사용(Node 전용 API 금지).
 
 ## 엔드포인트

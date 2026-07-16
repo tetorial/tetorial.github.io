@@ -1,6 +1,6 @@
 # Tetorial 공통 규약: 모노레포 구조 · 개발 규칙 · 에이전트 워크플로우 (`docs/conventions.md`)
 
-> 모든 에이전트가 작업 전에 읽는 문서. `docs/decisions.md`(프로젝트 결정 로그)와 함께 SSOT를 구성한다.
+> 모든 에이전트가 작업 전에 읽는 문서. `docs/DECISIONS.md`(프로젝트 결정 로그)와 함께 SSOT를 구성한다.
 > 우선순위: 모듈 명세(specs) > 이 문서 > 코드 주석. 충돌 시 상위 문서가 이긴다.
 
 ---
@@ -79,7 +79,7 @@ types → 의존성 0 (검증기 포함 자급자족)
 
 ## 5. 에이전트 워크플로우
 
-1. **착수 전 필독**: `docs/decisions.md` → `docs/conventions.md`(이 문서) → 담당 모듈 명세 → 명세의 "참고자료" 목록.
+1. **착수 전 필독**: `docs/DECISIONS.md` → `docs/conventions.md`(이 문서) → 담당 모듈 명세 → 명세의 "참고자료" 목록.
 2. **작업 경계**: 담당 패키지 디렉터리 안에서만 수정한다. 다음은 총괄 승인 없이 수정 금지: `packages/types`, `docs/`, 루트 설정 파일, 타 패키지.
 3. **모호성 처리**: 명세가 모호하거나 명세 간 충돌을 발견하면 **임의로 결정하지 말고**, 담당 패키지에 `QUESTIONS.md`를 만들어 질문을 남기고 해당 부분을 보류한 채 나머지를 진행한다. 총괄이 명세를 개정한 뒤 재개한다.
 4. **완료 정의 (DoD)**: ① 명세의 수용 기준 테스트 전부 통과 ② `pnpm lint` · `pnpm typecheck` · `pnpm test` 루트 통과 ③ 패키지 README에 공개 API 사용 예시 갱신 ④ QUESTIONS.md 잔여 항목 없음(또는 보류 사유 명시).
@@ -104,16 +104,16 @@ types → 의존성 0 (검증기 포함 자급자족)
 
 ## 8. 모듈별 명세 현황 (위임 준비 상태)
 
-| 패키지 | 명세 | 상태 |
-|---|---|---|
-| types | notes 스키마 + meta 스키마 | ✅ 위임 가능 (zod 검증기 구현) |
-| engine | docs/specs/engine.md + docs/specs/appendix-engine-rules.md + packages/engine/src/data/triangle-data.json | ✅ 위임 가능 |
-| adapter-tetrio | docs/specs/adapter-tetrio.md | ✅ 위임 가능 |
-| input | docs/specs/input.md | ✅ 위임 가능 (선행: engine) |
-| replay-tetrio | docs/specs/replay-tetrio.md | ✅ 위임 가능 (선행: adapter) |
-| sim | docs/specs/sim.md | ✅ 위임 가능 (선행: engine) |
-| renderer | docs/specs/renderer.md | ✅ 위임 가능 |
-| gist-proxy | docs/specs/gist-proxy.md | ✅ 위임 가능 |
-| apps/web | docs/specs/apps-web.md | ✅ 위임 가능 (선행: 전 패키지) |
+| 패키지 | 선행 |
+|---|---|
+| types | — |
+| engine | — |
+| adapter-tetrio | — |
+| input | engine |
+| replay-tetrio | adapter-tetrio |
+| sim | engine |
+| renderer | — |
+| gist-proxy | — |
+| apps/web | 전 패키지 |
 
-착수 순서·병렬 트랙은 `docs/kickoff.md` §2 웨이브 구성을 따른다.
+착수 순서·병렬 트랙은 `docs/WORKFLOW.md` 웨이브 구성을 따른다.

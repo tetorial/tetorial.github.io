@@ -3,8 +3,7 @@
 **.ttrm/.ttr 파싱 · 라운드 발췌 · triangle(@haelp/teto) 엔진 기반 결정론적 재생 · 분기
 (시뮬레이터 진입) 지점 제공.** 모든 구조·수치는 실물 리플레이(FT3 ttrm + 40L ttr)로 실증됐다.
 
-- 명세(SSOT): [replay-tetrio.md](../../docs/specs/replay-tetrio.md) · [adapter-tetrio.md](../../docs/specs/adapter-tetrio.md)
-- 실측 근거: [spike-triangle-report.md](../../docs/specs/spike-triangle-report.md) §3(재생 청사진)·§5(실물 구조)
+- 실측 근거: [2026-07-10-triangle-spike.md](../../docs/research/2026-07-10-triangle-spike.md) §3(재생 청사진)·§5(실물 구조)
 - 의존성: `@tetorial/types` · `@tetorial/adapter-tetrio` · `@haelp/teto`(재생 엔진, 런타임)
 
 ## 공개 API

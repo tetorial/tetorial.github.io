@@ -3,7 +3,6 @@
 notes(`notes-<clientId>.json`)·meta(`meta.json`) 스키마의 **TS 타입 + zod 검증기**.
 Worker(gist-proxy)와 클라이언트가 공유한다. 런타임 의존성은 `zod` 단독 — Workers 런타임 호환.
 
-- 명세(SSOT): [notes-schema.md](../../docs/specs/notes-schema.md) · [meta-schema.md](../../docs/specs/meta-schema.md)
 - 공개 타입 변경 = 스키마 변경이다. 반드시 명세 개정 + 총괄 승인 하에 수행 (conventions §2).
 
 ## 공개 API

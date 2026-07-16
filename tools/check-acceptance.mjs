@@ -9,6 +9,13 @@
 //   따옴표 안 ID 언급("E-1 ..." 등)을 수집해 대조한다.
 // - 아직 구현 전 모듈(테스트 파일이 하나도 없는 패키지)의 ID는 "미착수"로 분류하고 실패로 치지 않는다.
 
+import fs from "node:fs";
+
+if (!fs.existsSync("docs/specs")) {
+  console.log("docs/specs 없음 — 검사 대상 없음. skip.");
+  process.exit(0);
+}
+
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 

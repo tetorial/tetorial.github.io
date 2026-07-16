@@ -4,7 +4,6 @@
 상태를 갖지 않는 그리기 계층 — "무엇을 그릴지"는 매 `render` 호출의 인자가 전부다.
 
 - 의존성: `@tetorial/types`만 (Canvas 2D API 사용, WebGL·preact·astro 비의존).
-- 명세: [`docs/specs/renderer.md`](../../docs/specs/renderer.md) (수용 기준 RD-1 ~ RD-7).
 
 ## 공개 API
 

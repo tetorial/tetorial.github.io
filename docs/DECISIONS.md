@@ -200,7 +200,7 @@ Jstris는 리플레이 포맷 역공학이 선행되어야 해 개발 공수가 
 | 찾는 것 | 있는 곳 |
 |---|---|
 | 한도값, 상수, 스키마 타입 | `packages/types` (유일 출처) |
-| Tetr.io 룰 원문 (킥·스핀·카운터) | `docs/specs/appendix-engine-rules.md` |
+| Tetr.io 룰 원문 (킥·스핀·카운터) | `docs/appendix-engine-rules.md` |
 | triangle 실측 리서치 | `docs/research/2026-07-10-triangle-spike.md` |
 | 무엇을 언제 만드나 | GitHub Milestones |
 | 아직 결정되지 않은 것 | GitHub Issues |

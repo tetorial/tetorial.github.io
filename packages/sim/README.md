@@ -2,7 +2,6 @@
 
 시뮬레이터 코어 — **노트 저작·열람의 상태 머신**. UI 프레임워크 무관 순수 로직으로, Preact 아일랜드(apps/web)가 구독해 화면을 그린다. DOM 무접촉.
 
-- 명세: [`docs/specs/sim.md`](../../docs/specs/sim.md) (§1 워크플로우가 규범)
 - 의존: `@tetorial/types`, `@tetorial/engine` (그 외 0)
 - 결정론 패키지 — `Math.random`·`Date` 미사용(id 생성도 순수 해시, [`QUESTIONS.md`](./QUESTIONS.md) Q1)
 

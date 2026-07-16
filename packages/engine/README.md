@@ -4,8 +4,7 @@
 상태 전이 머신이다 — 미노는 저절로 떨어지지 않고, 조작감(DAS/ARR/SDF)은 상위 입력
 레이어(`@tetorial/input`)가 원자 조작을 반복 호출해 제공한다.
 
-- 명세(SSOT): [engine.md](../../docs/specs/engine.md) ·
-  [appendix-engine-rules.md](../../docs/specs/appendix-engine-rules.md)
+- 룰 규범: [appendix-engine-rules.md](../../docs/appendix-engine-rules.md)
 - 규범 데이터: `src/data/triangle-data.json` — @haelp/teto v4.2.7 원본 무수정 복제
   (킥테이블·형상·코너테이블·스핀 규칙). **손 전사 금지, 그대로 임포트.**
 - 런타임 의존성 **0** (`@tetorial/types`는 타입 전용). 브라우저/Node/Worker 동일 동작.
