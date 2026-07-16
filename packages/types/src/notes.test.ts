@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
-import { notesFileSchema, type NotesFile, type Note } from "./index.js";
+import { notesFileSchema, NOTES_LIMITS, type NotesFile, type Note } from "./index.js";
 
 // docs/specs/notes-schema.md §5 전체 예시 — 자구 그대로 (수정 금지)
 const specExampleJson = `{
@@ -69,6 +69,17 @@ function firstNote(file: NotesFile): Note {
   return note;
 }
 
+/** 예시 노트를 복제해 notes 배열을 n개로 늘린다 (한도 경계 검증용 — W0b-2·M1a-3 공용) */
+function growNotes(n: number) {
+  return (file: NotesFile) => {
+    const proto = firstNote(file);
+    file.notes = Array.from({ length: n }, (_, i) => ({
+      ...structuredClone(proto),
+      id: `n${String(i).padStart(7, "0")}`,
+    }));
+  };
+}
+
 // 타입 레벨 검증: 손 선언 타입(명세 §4 자구)과 zod 추론 타입의 상호 할당성
 type MutualExtends<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const notesTypeMatches: MutualExtends<NotesFile, z.infer<typeof notesFileSchema>> = true;
@@ -90,16 +101,9 @@ describe("W0b-1 명세 예시 JSON 왕복 (notes-schema §5)", () => {
 });
 
 describe("W0b-2 한도 경계 매트릭스 (notes-schema §4·§6)", () => {
-  it("notes 50개 통과 / 51개 거부", () => {
-    const grow = (n: number) => (file: NotesFile) => {
-      const proto = firstNote(file);
-      file.notes = Array.from({ length: n }, (_, i) => ({
-        ...structuredClone(proto),
-        id: `n${String(i).padStart(7, "0")}`,
-      }));
-    };
-    expect(checkMutated(grow(50))).toBe(true);
-    expect(checkMutated(grow(51))).toBe(false);
+  it("notes 10개 통과 / 11개 거부 (M1a 한도 개정)", () => {
+    expect(checkMutated(growNotes(10))).toBe(true);
+    expect(checkMutated(growNotes(11))).toBe(false);
   });
 
   it("pages 100개 통과 / 101개 거부 / 0개 거부 (최소 1개)", () => {
@@ -296,5 +300,23 @@ describe("W0b-3 v1 예약 요소 — D 셀·overlays (notes-schema 결정 로그
     expect(checkMutated(setHighlights(Array.from({ length: 41 }, () => "H".repeat(10))))).toBe(
       false,
     ); // 40행 초과
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M1a 개정 — 노트 한도 10. Origin 단일화(note 변형 제거)는 sim(derive.ts)이
+// note 변형을 생성·의존해 이 웨이브에서 보류 — #2(S-1)에서 추적, sim 개정 후 이행.
+// ---------------------------------------------------------------------------
+
+describe("M1a-3 노트 한도 10 (types-m1a §3)", () => {
+  it("M1a-3 notes 10개 파일은 통과하고 11개는 거부된다", () => {
+    expect(checkMutated(growNotes(10))).toBe(true);
+    expect(checkMutated(growNotes(11))).toBe(false);
+  });
+
+  it("M1a-3 NOTES_LIMITS.maxNotesPerReplay === 10이 공개 상수로 노출된다", () => {
+    expect(NOTES_LIMITS.maxNotesPerReplay).toBe(10);
+    // maxNotes(파일당)는 합산 한도의 따름 상한 — 두 값이 같다 (types-m1a §3)
+    expect(NOTES_LIMITS.maxNotes).toBe(NOTES_LIMITS.maxNotesPerReplay);
   });
 });

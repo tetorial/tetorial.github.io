@@ -27,6 +27,7 @@ export type Note = {
 };
 
 /** 진입점: 리플레이의 한 프레임 또는 다른 노트의 한 페이지 */
+// note 변형 제거는 #2(S-1) 미결 — sim(derive.ts)이 note 변형을 생성·의존하므로 sim 개정 후 이행.
 export type Origin =
   | { type: "replay"; round: number; player: number; frame: number }
   | { type: "note"; clientId: string; noteId: string; pageId: string };
@@ -82,7 +83,11 @@ export type PieceType = "I" | "J" | "L" | "O" | "S" | "T" | "Z";
     — 파싱된 객체만 받으므로 Worker의 요청 크기 검사 몫 (gist-proxy §4-2) */
 export const NOTES_LIMITS = {
   maxFileBytes: 800_000,
-  maxNotes: 50,
+  // 파일당 노트 수. maxNotesPerReplay의 따름 상한 — 파일 하나가 합산 한도를 넘을 수 없으므로 두 값이 같다
+  maxNotes: 10,
+  // 리플레이(=Gist) 전체 합산 한도. 이 패키지는 값의 유일 출처만 제공한다 (D 문서에 숫자 복사 금지 규칙).
+  // 교차 파일 강제는 Worker(#35), 생성 차단 UX는 클라이언트(M1 후속 웨이브) 몫
+  maxNotesPerReplay: 10,
   maxPages: 100,
   maxCommentCodePoints: 500,
   maxQueueLength: 1000,
@@ -105,7 +110,8 @@ const boardRowsSchema = z.object({
     .max(NOTES_LIMITS.maxBoardRows), // 전체 높이(가시 20 + 버퍼 20)
 });
 
-/** Origin 단독 검증기 (W0 게이트 승인으로 공개 — adapter·sim의 부분 검증용) */
+/** Origin 단독 검증기 (W0 게이트 승인으로 공개 — adapter·sim의 부분 검증용).
+    note 변형 제거는 #2(S-1)에서 추적 — sim 개정 후 이행 */
 export const originSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("replay"),
@@ -199,7 +205,7 @@ export const notesFileSchema = z
     author: z.object({ name: z.string().optional() }).optional(),
     createdAt: isoUtcSchema,
     updatedAt: isoUtcSchema,
-    notes: z.array(noteSchema).max(NOTES_LIMITS.maxNotes), // §6: notes ≤ 50
+    notes: z.array(noteSchema).max(NOTES_LIMITS.maxNotes), // 파일당 노트 ≤ maxNotes (M1a 개정: 10)
   })
   // §4: note.id는 파일 내 유일
   .refine((file) => new Set(file.notes.map((n) => n.id)).size === file.notes.length, {

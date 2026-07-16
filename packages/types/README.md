@@ -12,7 +12,7 @@ Worker(gist-proxy)와 클라이언트가 공유한다. 런타임 의존성은 `z
 | `NotesFile` `Note` `Origin` `Snapshot` `Page` `PageState` `BoardRows` `PieceType` | 타입 | notes 스키마 §4 자구 그대로                          |
 | `notesFileSchema`                                                                 | zod  | `NotesFile` 검증기 (한도 §6 + 산술 경계 refine 포함) |
 | `originSchema` `snapshotSchema` `pageSchema` `pageStateSchema`                    | zod  | 서브 스키마 단독 검증기 (adapter A-7·sim 소비용 — W0 게이트 승인) |
-| `NOTES_LIMITS`                                                                    | 상수 | notes §6 한도 수치. `maxFileBytes`(직렬화 800KB)는 Worker가 강제 |
+| `NOTES_LIMITS`                                                                    | 상수 | notes 한도 수치 (M1a 개정 반영). `maxFileBytes`(직렬화 800KB)와 `maxNotesPerReplay`(리플레이 합산)는 Worker가 강제 |
 | `MetaFile`                                                                        | 타입 | meta 스키마 §2 자구 그대로                           |
 | `metaFileSchema`                                                                  | zod  | `MetaFile` 검증기 (§3 규약 + §5-1 한도·ttr 교차 검증 포함) |
 | `META_LIMITS`                                                                     | 상수 | meta §5 한도 수치 (title·description·replayBody)     |
@@ -53,6 +53,12 @@ const snapshot = snapshotSchema.parse(convertTriangleState(state));
 if (new TextEncoder().encode(JSON.stringify(file)).length > NOTES_LIMITS.maxFileBytes) {
   return errorResponse(413, "payload-too-large");
 }
+
+// gist-proxy #35: 리플레이(=Gist) 전체 합산 노트 한도 — 값의 유일 출처는 이 상수
+const total = allFiles.reduce((n, f) => n + f.notes.length, 0);
+if (total > NOTES_LIMITS.maxNotesPerReplay) {
+  return errorResponse(422, "limit-exceeded");
+}
 ```
 
 ### 타입만 사용 (renderer 등 타입 결합 소비자)
@@ -67,7 +73,8 @@ function rowAt(board: BoardRows, y: number): string {
 
 ## 검증 규칙 요약
 
-- **한도(§6)**: notes ≤ 50 · pages 1~100 · comment ≤ 500자(유니코드 **코드포인트** 기준) ·
+- **한도(M1a 개정)**: notes ≤ 10(파일당 — 리플레이 합산 한도 `maxNotesPerReplay: 10`의 따름 상한) ·
+  pages 1~100 · comment ≤ 500자(유니코드 **코드포인트** 기준) ·
   queue ≤ 1000 · board ≤ 40행(각 행 = width 10 길이) · title ≤ 100자 · description ≤ 1000자
 - **산술 경계(refine)**: `page.state.queueUsed ≤ snapshot.queue.length` ·
   `rounds.map` 오름차순·중복 없음·값 ∈ `[0, totalInOriginal)` ·
