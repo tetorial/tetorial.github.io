@@ -7,7 +7,10 @@ import { WorkerClient, WorkerError } from "./worker-client.js";
 import { makeSnapshot, jsonResponse } from "./testing.js";
 
 const KEYS = resolveKeys(null);
-const BRANCH = { origin: { type: "replay" as const, round: 0, player: 0, frame: 841 }, snapshot: makeSnapshot() };
+const BRANCH = {
+  origin: { type: "replay" as const, round: 0, player: 0, frame: 841 },
+  snapshot: makeSnapshot(),
+};
 
 function sampleIndex(gistId = "g1") {
   return {
@@ -125,6 +128,38 @@ describe("AW-7 편집 키 수명주기(업로드 경로)", () => {
       }),
     ).rejects.toBeInstanceOf(WorkerError);
     sim.dispose();
+  });
+});
+
+describe("M1b-5 웹 최소 배선 — 노트 id 생성·주입 (sim-m1b §6)", () => {
+  it("M1b-5 generateNoteId는 [A-Za-z0-9_-]{8} 규격을 만족한다", async () => {
+    const { generateNoteId } = await import("./note-id.js");
+    for (let i = 0; i < 100; i++) {
+      expect(generateNoteId()).toMatch(/^[A-Za-z0-9_-]{8}$/);
+    }
+  });
+
+  it("M1b-5 신규 경로: 생성된 id가 주입되어 toNote().id가 규격을 만족한다", () => {
+    const sim = createSimulator({ handling: DEFAULT_HANDLING, keys: KEYS, init: BRANCH });
+    sim.session.addPage("p");
+    expect(sim.session.toNote().id).toMatch(/^[A-Za-z0-9_-]{8}$/);
+    sim.dispose();
+  });
+
+  it("M1b-5 재편집 경로: { existing }만 전달 — id·페이지가 보존된다", () => {
+    const first = createSimulator({ handling: DEFAULT_HANDLING, keys: KEYS, init: BRANCH });
+    first.session.addPage("원본 페이지");
+    const note = first.session.toNote();
+    first.dispose();
+
+    const reedit = createSimulator({
+      handling: DEFAULT_HANDLING,
+      keys: KEYS,
+      init: { existing: note },
+    });
+    expect(reedit.session.pages.length).toBe(1);
+    expect(reedit.session.toNote().id).toBe(note.id);
+    reedit.dispose();
   });
 });
 

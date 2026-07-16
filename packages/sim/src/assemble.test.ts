@@ -4,12 +4,13 @@ import { describe, expect, it } from "vitest";
 import { assembleNotesFile, SERVER_FIELD_SENTINELS } from "./assemble.js";
 import { createAuthoringSession } from "./authoring.js";
 import { deepClone } from "./work.js";
-import { TEST_CLIENT_ID, makeReplayOrigin, makeSnapshot } from "./testing/fixtures.js";
+import { TEST_CLIENT_ID, makeReplayOrigin, makeSnapshot, testNoteId } from "./testing/fixtures.js";
 
 function makeNote(frame: number, comment = "c"): Note {
   const s = createAuthoringSession({
     origin: makeReplayOrigin({ frame }),
     snapshot: makeSnapshot(),
+    noteId: testNoteId(frame), // frame별 구분 id — 신규 경로는 값 주입 (M1b-3)
   });
   s.controls.hardDrop();
   s.addPage(comment);

@@ -3,7 +3,7 @@ import { SimEngine } from "@tetorial/engine";
 import type { Cell, LockInfo } from "@tetorial/engine";
 import type { Note, Origin, Page, PageState, Snapshot } from "@tetorial/types";
 import { NoteLimitError, checkNoteLimits, SERVER_FIELD_SENTINELS } from "./assemble.js";
-import { makeNoteId, makePageId } from "./ids.js";
+import { makePageId } from "./ids.js";
 import { OverlayBuffer } from "./overlays.js";
 import { buildWorkView, captureWork, deepClone, restoreWork } from "./work.js";
 import type { WorkView } from "./work.js";
@@ -359,18 +359,52 @@ class AuthoringSessionImpl implements AuthoringSession {
   }
 }
 
-/** 저작 세션 생성 — 리플레이 프레임 파생 또는 자기 노트 재편집(existing) */
-export function createAuthoringSession(init: {
-  origin: Origin;
-  snapshot: Snapshot;
-  existing?: Note;
-  existingNoteIds?: string[]; // 신규 노트 시 대상 파일의 기존 id 목록 — 충돌 회피 (명세 §3, 2026-07-12)
-}): AuthoringSession {
-  const existing = init.existing;
-  // existing이 있으면 그 노트가 진실(자기완결 snapshot·origin·id 재사용). 없으면 리플레이 진입.
-  const origin = existing ? existing.origin : init.origin;
-  const snapshot = existing ? existing.snapshot : init.snapshot;
-  const noteId = existing ? existing.id : makeNoteId(origin, snapshot, init.existingNoteIds);
+/** 주입된 노트 id의 거부 계약 (명세 sim-m1b §3 — API의 일부). 세션은 생성되지 않는다. */
+export class InvalidNoteIdError extends Error {
+  readonly reason: "shape" | "collision";
+  constructor(reason: "shape" | "collision", message: string) {
+    super(message);
+    this.name = "InvalidNoteIdError";
+    this.reason = reason;
+  }
+}
+
+// note id 규격 — 유일 출처는 @tetorial/types notes 스키마(notes.ts idSchema)다.
+// 미공개 심볼이라 리터럴을 둔다. M1c에서 공개 상수 승격 검토 (sim-m1b §3).
+const NOTE_ID_SHAPE = /^[A-Za-z0-9_-]{8}$/;
+
+/**
+ * 저작 세션 생성 — 자기 노트 재편집(existing) 또는 신규(origin+snapshot+noteId 주입).
+ * 신규 경로만 입구 방어: 형식 불일치·existingNoteIds 충돌 시 InvalidNoteIdError throw.
+ * 재편집 경로는 어떤 대조·검증도 하지 않는다 — 자기 id는 기존 목록에 당연히 있다 (sim-m1b §3).
+ */
+export function createAuthoringSession(
+  init:
+    | { existing: Note } // 재편집: id·origin·snapshot 전부 existing에서
+    | {
+        origin: Origin;
+        snapshot: Snapshot;
+        noteId: string; // 신규: 호출자가 값으로 주입 (sim은 CSPRNG 미접촉 — id는 받기만 한다)
+        existingNoteIds?: string[]; // 대상 파일의 기존 id 목록 — 충돌 1회 대조용
+      },
+): AuthoringSession {
+  let origin: Origin;
+  let snapshot: Snapshot;
+  let noteId: string;
+  let pages: Page[];
+  if ("existing" in init) {
+    ({ origin, snapshot, id: noteId } = init.existing);
+    pages = deepClone(init.existing.pages);
+  } else {
+    if (!NOTE_ID_SHAPE.test(init.noteId)) {
+      throw new InvalidNoteIdError("shape", `noteId 형식 위반 ([A-Za-z0-9_-]{8}): ${init.noteId}`);
+    }
+    if (init.existingNoteIds?.includes(init.noteId)) {
+      throw new InvalidNoteIdError("collision", `noteId가 기존 id와 충돌: ${init.noteId}`);
+    }
+    ({ origin, snapshot, noteId } = init);
+    pages = [];
+  }
   return new AuthoringSessionImpl({
     origin: deepClone(origin),
     snapshot: deepClone(snapshot),
@@ -378,7 +412,7 @@ export function createAuthoringSession(init: {
     pageCounter: 0,
     engine: SimEngine.fromSnapshot(snapshot),
     overlay: OverlayBuffer.empty(),
-    pages: existing ? deepClone(existing.pages) : [],
+    pages,
     selectedPageId: null,
     undoStack: [],
     redoStack: [],

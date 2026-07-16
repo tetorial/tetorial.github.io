@@ -7,16 +7,12 @@ import { deepClone } from "./work.js";
  *   board/current/hold/holdLocked/counters ← page.state
  *   queue   ← note.snapshot.queue.slice(page.state.queueUsed)
  *   ruleset ← note.snapshot.ruleset 복사
- *   origin  ← { type:"note", clientId: sourceClientId, noteId, pageId }
+ *   origin  ← 원본 노트 origin의 깊은 복사 (D-8 — fork는 참조가 아니라 복사, sim-m1b §2)
  * current가 null(큐 소진 페이지)이면 진입 불가.
- *
- * @param sourceClientId 대상 노트가 속한 파일의 clientId — origin.note.clientId 구성용.
- *   (명세 §5 시그니처에는 누락되어 있어 인자로 받는다 — QUESTIONS.md Q2)
  */
 export function deriveSnapshotFromPage(
   note: Note,
   pageId: string,
-  sourceClientId: string,
 ): { snapshot: Snapshot; origin: Origin } | { error: "queue-exhausted" } {
   const page = note.pages.find((p) => p.id === pageId);
   if (!page) throw new Error(`페이지를 찾을 수 없음: ${pageId}`);
@@ -32,11 +28,5 @@ export function deriveSnapshotFromPage(
     queue: note.snapshot.queue.slice(page.state.queueUsed),
     counters: { ...page.state.counters },
   };
-  const origin: Origin = {
-    type: "note",
-    clientId: sourceClientId,
-    noteId: note.id,
-    pageId,
-  };
-  return { snapshot, origin };
+  return { snapshot, origin: deepClone(note.origin) };
 }

@@ -1,13 +1,22 @@
-// S-1 캡처 정합 · S-3 언두 매트릭스 (명세 §7)
+// S-1 캡처 정합 · S-3 언두 매트릭스 (명세 §7) · M1b-3/M1b-4 노트 id 주입·입구 방어 (sim-m1b §3)
 import { SimEngine } from "@tetorial/engine";
 import { describe, expect, it } from "vitest";
-import { createAuthoringSession } from "./authoring.js";
-import { makeReplayOrigin, makeSnapshot } from "./testing/fixtures.js";
+import { InvalidNoteIdError, createAuthoringSession } from "./authoring.js";
+import { TEST_NOTE_ID, makeReplayOrigin, makeSnapshot, testNoteId } from "./testing/fixtures.js";
+
+/** 신규 경로 기본 init — 고정 noteId 주입 (M1b-3) */
+function newInit(over: { snapshot?: ReturnType<typeof makeSnapshot> } = {}) {
+  return {
+    origin: makeReplayOrigin(),
+    snapshot: over.snapshot ?? makeSnapshot(),
+    noteId: TEST_NOTE_ID,
+  };
+}
 
 describe("S-1 캡처 정합", () => {
   it("조작·그리기 혼합 후 addPage 산출 PageState가 독립 재현 엔진과 일치 (queueUsed 산술 포함)", () => {
     const snapshot = makeSnapshot({ queue: "IJLOSZT" }); // current T + 큐 7
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot });
+    const s = createAuthoringSession(newInit({ snapshot }));
 
     s.controls.hardDrop(); // T 락, I 스폰 (queueUsed 1)
     s.controls.swapHold(); // 첫 홀드: hold=I, J 인출 (queueUsed 2)
@@ -48,7 +57,7 @@ describe("S-1 캡처 정합", () => {
   });
 
   it("work 관측 뷰와 캡처된 페이지가 동일 상태를 가리킨다", () => {
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot: makeSnapshot() });
+    const s = createAuthoringSession(newInit());
     s.controls.hardDrop();
     const page = s.addPage();
     const work = s.work;
@@ -63,7 +72,7 @@ describe("S-3 언두 매트릭스", () => {
     s.work.board.every((row) => row.every((c) => c === "_"));
 
   it("lock 단위 undo·redo", () => {
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot: makeSnapshot() });
+    const s = createAuthoringSession(newInit());
     expect(s.canUndo).toBe(false);
     s.controls.hardDrop();
     expect(s.canUndo).toBe(true);
@@ -80,7 +89,7 @@ describe("S-3 언두 매트릭스", () => {
   });
 
   it("스트로크 단위 undo·redo", () => {
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot: makeSnapshot() });
+    const s = createAuthoringSession(newInit());
     s.beginStroke({ kind: "cell", v: "G" });
     s.strokeTo({ x: 0, y: 0 });
     s.endStroke();
@@ -93,7 +102,7 @@ describe("S-3 언두 매트릭스", () => {
 
   it("불러오기 단위 undo", () => {
     const snapshot = makeSnapshot({ queue: "IJLOSZTIJLOS" });
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot });
+    const s = createAuthoringSession(newInit({ snapshot }));
     s.controls.hardDrop(); // 보드 상태 A
     const pA = s.addPage();
     s.controls.hardDrop(); // 보드 상태 B (미노 2개)
@@ -108,7 +117,7 @@ describe("S-3 언두 매트릭스", () => {
   });
 
   it("깊이 상한 50 — 60회 커밋 후 언두는 50회까지만", () => {
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot: makeSnapshot() });
+    const s = createAuthoringSession(newInit());
     for (let i = 0; i < 60; i++) {
       s.beginStroke({ kind: "cell", v: "G" });
       s.strokeTo({ x: i % 10, y: Math.floor(i / 10) });
@@ -123,7 +132,7 @@ describe("S-3 언두 매트릭스", () => {
   });
 
   it("페이지 CRUD 이력 분리 — undo가 페이지 목록을 되돌리지 않는다", () => {
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot: makeSnapshot() });
+    const s = createAuthoringSession(newInit());
     s.controls.hardDrop(); // 언두 스택에 push
     s.addPage(); // 페이지 CRUD — 언두 스택과 분리
     expect(s.pages.length).toBe(1);
@@ -134,33 +143,81 @@ describe("S-3 언두 매트릭스", () => {
   });
 });
 
-describe("note.id 충돌 회피 (명세 §3 existingNoteIds — 2026-07-12 개정)", () => {
-  it("동일 origin+snapshot 재파생 시 existingNoteIds로 다른 id를 얻는다 (조용한 교체 방지)", () => {
-    const origin = makeReplayOrigin();
-    const snapshot = makeSnapshot();
-    const first = createAuthoringSession({ origin, snapshot });
-    first.addPage();
-    const firstNote = first.toNote();
-
-    const second = createAuthoringSession({ origin, snapshot, existingNoteIds: [firstNote.id] });
-    second.addPage();
-    const secondNote = second.toNote();
-
-    expect(secondNote.id).not.toBe(firstNote.id); // 충돌 회피
-    expect(secondNote.id).toMatch(/^[A-Za-z0-9_-]{8}$/); // 형식 유지
-    // 결정론: 같은 입력이면 같은 회피 결과
-    const third = createAuthoringSession({ origin, snapshot, existingNoteIds: [firstNote.id] });
-    third.addPage();
-    expect(third.toNote().id).toBe(secondNote.id);
+describe("M1b-3 노트 id 값 주입 (sim-m1b §3)", () => {
+  it("M1b-3 신규 경로: 주입된 noteId가 그대로 note.id가 된다 (해시 파생 소멸)", () => {
+    const s = createAuthoringSession({
+      origin: makeReplayOrigin(),
+      snapshot: makeSnapshot(),
+      noteId: testNoteId(7),
+    });
+    s.addPage();
+    expect(s.toNote().id).toBe(testNoteId(7));
   });
 
-  it("existingNoteIds 미전달 시 기존 동작 유지 (동일 입력 = 동일 id)", () => {
-    const origin = makeReplayOrigin();
-    const snapshot = makeSnapshot();
-    const a = createAuthoringSession({ origin, snapshot });
-    const b = createAuthoringSession({ origin, snapshot });
-    a.addPage();
-    b.addPage();
-    expect(a.toNote().id).toBe(b.toNote().id);
+  it("M1b-3 재편집 경로: existing의 id·origin·snapshot을 그대로 쓴다", () => {
+    const first = createAuthoringSession(newInit());
+    first.controls.hardDrop();
+    first.addPage();
+    const note = first.toNote();
+
+    const reedit = createAuthoringSession({ existing: note });
+    expect(reedit.pages).toEqual(note.pages);
+    reedit.addPage();
+    const reNote = reedit.toNote();
+    expect(reNote.id).toBe(note.id);
+    expect(reNote.origin).toEqual(note.origin);
+    expect(reNote.snapshot).toEqual(note.snapshot);
+  });
+});
+
+describe("M1b-4 입구 방어 (sim-m1b §3)", () => {
+  const base = () => ({ origin: makeReplayOrigin(), snapshot: makeSnapshot() });
+
+  it("M1b-4 형식 불일치 시 InvalidNoteIdError(shape) — 세션 미생성", () => {
+    for (const bad of ["short", "toolong-9", "invalid!", "가나다라마바사아", ""]) {
+      let thrown: unknown;
+      try {
+        createAuthoringSession({ ...base(), noteId: bad });
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(InvalidNoteIdError);
+      if (thrown instanceof InvalidNoteIdError) expect(thrown.reason).toBe("shape");
+    }
+  });
+
+  it("M1b-4 existingNoteIds 충돌 시 InvalidNoteIdError(collision) — 세션 미생성", () => {
+    let thrown: unknown;
+    try {
+      createAuthoringSession({
+        ...base(),
+        noteId: TEST_NOTE_ID,
+        existingNoteIds: [testNoteId(1), TEST_NOTE_ID],
+      });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(InvalidNoteIdError);
+    if (thrown instanceof InvalidNoteIdError) expect(thrown.reason).toBe("collision");
+  });
+
+  it("M1b-4 목록 비충돌이면 생성 성공 (충돌 대조는 전달된 목록만)", () => {
+    const s = createAuthoringSession({
+      ...base(),
+      noteId: TEST_NOTE_ID,
+      existingNoteIds: [testNoteId(1), testNoteId(2)],
+    });
+    expect(s.pages.length).toBe(0);
+  });
+
+  it("M1b-4 재편집(existing) 경로는 대조하지 않는다 — 자기 id가 목록에 있어도 성공", () => {
+    const first = createAuthoringSession(newInit());
+    first.addPage();
+    const note = first.toNote();
+    // existing 경로에는 목록 자체가 없다 — 형식·충돌 어떤 검증도 없이 성공해야 한다
+    const reedit = createAuthoringSession({ existing: note });
+    expect(reedit.pages.length).toBe(1);
+    reedit.addPage();
+    expect(reedit.toNote().id).toBe(note.id);
   });
 });

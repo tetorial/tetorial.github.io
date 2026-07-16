@@ -1,7 +1,11 @@
 // @tetorial/sim 공개 API — 시뮬레이터 코어(노트/페이지 상태 머신). 명세 docs/specs/sim.md.
 // 명세에 없는 공개 API 추가 금지 (conventions §5) — 제안은 QUESTIONS.md로.
 
-export { createAuthoringSession, restoreAuthoringSession } from "./authoring.js";
+export {
+  createAuthoringSession,
+  restoreAuthoringSession,
+  InvalidNoteIdError,
+} from "./authoring.js";
 export type {
   AuthoringSession,
   EngineControls,

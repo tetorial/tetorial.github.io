@@ -3,12 +3,21 @@ import { notesFileSchema } from "@tetorial/types";
 import { describe, expect, it } from "vitest";
 import { assembleNotesFile } from "./assemble.js";
 import { createAuthoringSession } from "./authoring.js";
-import { TEST_CLIENT_ID, makeReplayOrigin, makeSnapshot } from "./testing/fixtures.js";
+import {
+  TEST_CLIENT_ID,
+  TEST_NOTE_ID,
+  makeReplayOrigin,
+  makeSnapshot,
+} from "./testing/fixtures.js";
 
 describe("S-7 A/B 시나리오 통합", () => {
   it("페이지 3개 → 1번 불러오기 → 변형 → 페이지 추가 → 순서 변경 → 조립 = zod 통과", () => {
     const snapshot = makeSnapshot({ queue: "IJLOSZTIJLOSZTIJLOSZT" });
-    const s = createAuthoringSession({ origin: makeReplayOrigin({ frame: 841 }), snapshot });
+    const s = createAuthoringSession({
+      origin: makeReplayOrigin({ frame: 841 }),
+      snapshot,
+      noteId: TEST_NOTE_ID,
+    });
 
     // 페이지 3개 추가
     s.controls.hardDrop();

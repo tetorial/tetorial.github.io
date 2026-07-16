@@ -1,12 +1,16 @@
 // S-4 드래프트 왕복 — 직렬화 → 복원 → 관측 뷰·후속 동작 동등(작업 상태 포함) (명세 §6·§7)
 import { describe, expect, it } from "vitest";
 import { createAuthoringSession, restoreAuthoringSession } from "./authoring.js";
-import { makeReplayOrigin, makeSnapshot } from "./testing/fixtures.js";
+import { TEST_NOTE_ID, makeReplayOrigin, makeSnapshot } from "./testing/fixtures.js";
 
 /** 락으로 마무리 → 조작 중 미노가 스폰 위치에 있어 복원 시 완전 동등이 성립 */
 function buildSession() {
   const snapshot = makeSnapshot({ queue: "IJLOSZTIJLOSZT" });
-  const s = createAuthoringSession({ origin: makeReplayOrigin({ frame: 100 }), snapshot });
+  const s = createAuthoringSession({
+    origin: makeReplayOrigin({ frame: 100 }),
+    snapshot,
+    noteId: TEST_NOTE_ID,
+  });
   s.controls.move(1);
   s.controls.rotate("cw");
   s.controls.hardDrop();
@@ -57,7 +61,11 @@ describe("S-4 드래프트 왕복", () => {
   });
 
   it("페이지로 만들지 않은 작업 중 보드도 드래프트에서 살아남는다", () => {
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot: makeSnapshot() });
+    const s = createAuthoringSession({
+      origin: makeReplayOrigin(),
+      snapshot: makeSnapshot(),
+      noteId: TEST_NOTE_ID,
+    });
     s.beginStroke({ kind: "cell", v: "D" });
     s.strokeTo({ x: 2, y: 0 });
     s.endStroke();

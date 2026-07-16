@@ -1,6 +1,6 @@
 // 결정론적 id 생성 — sim은 Math.random·Date 금지(CLAUDE.md 결정론 규칙)이므로
-// 순수 해시(cyrb53, Math.imul 기반)로 id를 파생한다. QUESTIONS.md Q1 참조.
-import type { Origin, Snapshot } from "@tetorial/types";
+// 순수 해시(cyrb53, Math.imul 기반)로 id를 파생한다.
+// note id는 M1b부터 외부 주입(authoring.ts) — 여기서는 page id만 파생한다.
 
 // [A-Za-z0-9_-] 64자 — notes 스키마의 id 문자집합과 정확히 일치 (6비트/문자)
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -33,22 +33,6 @@ function encode8(n: number): string {
     v = Math.floor(v / 64);
   }
   return out;
-}
-
-/**
- * note.id — 진입점+스냅샷 해시. 세션 생성 시 1회 확정(QUESTIONS.md Q1).
- * avoid(대상 파일의 기존 note.id 목록 — 명세 §3 existingNoteIds)와 충돌하면 카운터 salt로
- * 재파생한다: 동일 진입점 재파생이 기존 노트를 조용히 교체(데이터 손실)하는 것을 방지 (2026-07-12).
- */
-export function makeNoteId(origin: Origin, snapshot: Snapshot, avoid?: readonly string[]): string {
-  const base = "note\0" + JSON.stringify(origin) + "\0" + JSON.stringify(snapshot);
-  let id = encode8(cyrb53(base));
-  if (!avoid || avoid.length === 0) return id;
-  const taken = new Set(avoid);
-  for (let salt = 1; taken.has(id); salt++) {
-    id = encode8(cyrb53(base + "\0#" + String(salt)));
-  }
-  return id;
 }
 
 /** page.id — noteId + 단조 카운터 해시. 노트 내 유일(카운터 단조 증가) */

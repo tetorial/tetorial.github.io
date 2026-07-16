@@ -4,11 +4,15 @@ import { pageStateSchema } from "@tetorial/types";
 import { describe, expect, it } from "vitest";
 import { createAuthoringSession, restoreAuthoringSession } from "./authoring.js";
 import { createViewerSession } from "./viewer.js";
-import { makeReplayOrigin, makeSnapshot } from "./testing/fixtures.js";
+import { TEST_NOTE_ID, makeReplayOrigin, makeSnapshot } from "./testing/fixtures.js";
 
 describe("S-8 오버레이 경로", () => {
   it("highlight 스트로크 → 캡처 → 직렬화 → 복원 왕복 (+ viewer 표시)", () => {
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot: makeSnapshot() });
+    const s = createAuthoringSession({
+      origin: makeReplayOrigin(),
+      snapshot: makeSnapshot(),
+      noteId: TEST_NOTE_ID,
+    });
 
     s.beginStroke({ kind: "highlight" });
     s.strokeTo({ x: 2, y: 0 });
@@ -36,7 +40,11 @@ describe("S-8 오버레이 경로", () => {
   });
 
   it("highlight 스트로크는 언두 1단위 — undo 시 오버레이가 사라진다", () => {
-    const s = createAuthoringSession({ origin: makeReplayOrigin(), snapshot: makeSnapshot() });
+    const s = createAuthoringSession({
+      origin: makeReplayOrigin(),
+      snapshot: makeSnapshot(),
+      noteId: TEST_NOTE_ID,
+    });
     s.beginStroke({ kind: "highlight" });
     s.strokeTo({ x: 4, y: 2 });
     s.endStroke();

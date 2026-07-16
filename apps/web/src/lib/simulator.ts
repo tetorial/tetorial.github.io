@@ -16,11 +16,15 @@ import {
 } from "@tetorial/sim";
 import type { AuthoringSession, SerializedDraft } from "@tetorial/sim";
 import type { Note, NotesFile, Origin, Snapshot } from "@tetorial/types";
+import { generateNoteId } from "./note-id.js";
 import type { Storage } from "./storage.js";
 import type { GistIndex, WorkerClient } from "./worker-client.js";
 
 /** session.controls + work.current을 합쳐 input의 EngineControls 계약을 만족시키는 어댑터. */
-function makeInputTarget(session: AuthoringSession, onLockError?: (e: unknown) => void): InputControls {
+function makeInputTarget(
+  session: AuthoringSession,
+  onLockError?: (e: unknown) => void,
+): InputControls {
   const c = session.controls;
   return {
     move: (d) => c.move(d),
@@ -60,23 +64,17 @@ export interface CreateSimulatorParams {
   keys: KeyBindings;
   onLockError?: (e: unknown) => void;
   /** 진입: 리플레이 분기 파생(origin+snapshot) / 페이지 파생 / 자기 노트 재편집(existing). */
-  init:
-    | { origin: Origin; snapshot: Snapshot; existingNoteIds?: string[] }
-    | { existing: Note };
+  init: { origin: Origin; snapshot: Snapshot; existingNoteIds?: string[] } | { existing: Note };
 }
 
 /** 저작 세션 + input을 배선한 시뮬레이터 컨트롤러를 만든다. */
 export function createSimulator(params: CreateSimulatorParams): SimulatorController {
-  // 재편집(existing)일 때도 createAuthoringSession은 origin·snapshot을 요구한다(존재 시 무시하고
-  // existing의 값을 쓴다 — sim authoring.ts). existing에서 채워 시그니처를 충족한다.
+  // 신규 경로만 id를 생성해 값으로 주입 — sim은 CSPRNG 미접촉(sim-m1b §3·§6).
+  // 재편집은 { existing }만 전달(id·origin·snapshot 전부 existing에서, 대조·검증 없음).
   const init =
     "existing" in params.init
-      ? {
-          origin: params.init.existing.origin,
-          snapshot: params.init.existing.snapshot,
-          existing: params.init.existing,
-        }
-      : params.init;
+      ? { existing: params.init.existing }
+      : { ...params.init, noteId: generateNoteId() };
   const session = createAuthoringSession(init);
   return wireSimulator(session, params);
 }
@@ -94,7 +92,11 @@ function wireSimulator(
   session: AuthoringSession,
   params: { handling: HandlingConfig; keys: KeyBindings; onLockError?: (e: unknown) => void },
 ): SimulatorController {
-  const input = createInput(makeInputTarget(session, params.onLockError), params.handling, params.keys);
+  const input = createInput(
+    makeInputTarget(session, params.onLockError),
+    params.handling,
+    params.keys,
+  );
   const offMeta = input.onMeta((action) => {
     if (action === "undo") session.undo();
     else if (action === "redo") session.redo();

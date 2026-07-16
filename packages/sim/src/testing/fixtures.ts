@@ -22,6 +22,14 @@ export function makeReplayOrigin(over: Partial<Extract<Origin, { type: "replay" 
 /** 유효 clientId ([A-Za-z0-9_-]{12}) */
 export const TEST_CLIENT_ID = "clientABC123";
 
+/** 유효 note id ([A-Za-z0-9_-]{8}) — 신규 경로 주입용 고정 상수 (sim-m1b §4) */
+export const TEST_NOTE_ID = "testNote";
+
+/** n마다 구분되는 유효 note id — 한 테스트에서 노트 여러 개가 필요할 때 */
+export function testNoteId(n: number): string {
+  return ("tn" + String(n)).padEnd(8, "0");
+}
+
 /** notes §4 재시뮬레이션 규범을 문자 그대로 조립 — S-2 독립 오라클 */
 export function respecSnapshotFromPage(note: Note, pageId: string): Snapshot {
   const page = note.pages.find((p) => p.id === pageId);
