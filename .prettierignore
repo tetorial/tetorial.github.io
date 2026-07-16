@@ -1,0 +1,15 @@
+# 의존성·산출물
+node_modules/
+coverage/
+pnpm-lock.yaml
+.worktrees/
+
+# 문서·데이터는 총괄 관리 — 포맷터로 건드리지 않는다
+docs/
+fixtures/
+
+# 스파이크 산출 코드 (레거시, 무수정 보존)
+tools/spike/
+
+# triangle 원본 데이터 무수정 복제 (appendix-engine-rules — 손대지 않는다)
+packages/engine/src/data/triangle-data.json

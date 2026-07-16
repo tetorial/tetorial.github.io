@@ -1,0 +1,54 @@
+---
+// 홈 (apps-web §1) — 서비스 소개 + 리플레이 열기 / 공유 링크 열기 진입.
+import Layout from "../layouts/Layout.astro";
+import OpenIsland from "../components/OpenIsland.tsx";
+---
+
+<Layout title="Tetorial — 모던 테트리스 리플레이 복기 도구">
+  <div class="home">
+    <section class="hero">
+      <h1>Tetorial</h1>
+      <p class="lede">
+        TETR.IO 리플레이를 열어 재생하고, 원하는 지점에서 <strong>분기(시뮬레이션)</strong>해
+        대안 수를 그려 보고, 페이지 단위 노트로 정리해 공유하세요.
+      </p>
+    </section>
+
+    <OpenIsland client:load />
+
+    <section class="notes-about">
+      <h2>어떻게 동작하나요?</h2>
+      <ul>
+        <li>로컬 파일은 업로드 없이도 재생·분기·시뮬레이터를 전부 사용할 수 있습니다.</li>
+        <li>공유는 익명으로 이뤄지며, 편집 키는 이 브라우저에만 저장됩니다.</li>
+        <li>지원: 모던 가이드라인 + 메이저 팬 룰 (TETR.IO ≤ 1.7.8).</li>
+      </ul>
+    </section>
+  </div>
+
+  <style>
+    .home {
+      max-width: 48rem;
+      margin: 0 auto;
+      padding: var(--space-6) var(--space-4);
+      display: grid;
+      gap: var(--space-6);
+    }
+    .hero h1 {
+      font-size: var(--text-xl);
+      margin: 0 0 var(--space-2);
+    }
+    .lede {
+      color: var(--color-text-muted);
+      font-size: var(--text-lg);
+      margin: 0;
+    }
+    .notes-about h2 {
+      font-size: var(--text-lg);
+    }
+    .notes-about ul {
+      color: var(--color-text-muted);
+      line-height: 1.8;
+    }
+  </style>
+</Layout>

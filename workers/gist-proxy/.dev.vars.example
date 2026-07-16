@@ -1,0 +1,13 @@
+# 로컬 개발용 시크릿·변수 예시. 복사해서 `.dev.vars`(gitignore됨)로 쓰고 실제 값을 채운다.
+# 프로덕션에서는 secret은 `wrangler secret put`, var는 대시보드/CI로 주입한다 (conventions §7).
+
+# 시크릿 (Gist 전용 부계정 fine-grained PAT, gist 스코프)
+GIST_PAT="ghp_xxxxxxxxxxxxxxxxxxxx"
+
+# 선택: Turnstile 검증을 켜려면 설정 (미설정이면 검증 통과)
+# TURNSTILE_SECRET="0x4AAAAAAA..."
+
+# 변수 (wrangler.toml [vars]에도 있으나 로컬에서 덮어쓰려면 여기서)
+GIST_OWNER="tetorial-bot"
+ALLOWED_ORIGINS="http://localhost:4321"
+WRITE_ENABLED="true"

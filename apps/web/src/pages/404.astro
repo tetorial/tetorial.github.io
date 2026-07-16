@@ -1,0 +1,37 @@
+---
+// 404 (apps-web §1) — base path 안내 포함 정적 페이지. 루트 서빙 기준(D-18) 문구.
+import Layout from "../layouts/Layout.astro";
+import { withBase } from "../lib/base-url.ts";
+---
+
+<Layout title="Tetorial — 페이지를 찾을 수 없습니다">
+  <div class="notfound">
+    <h1>페이지를 찾을 수 없습니다</h1>
+    <p>
+      요청한 주소가 없습니다. 이 사이트는 <code>{withBase("/")}</code> 아래에서 서빙됩니다 —
+      링크가 오래되었거나 경로가 잘못되었을 수 있습니다.
+    </p>
+    <p>
+      <a href={withBase("/")}>홈으로</a> · <a href={withBase("/replay")}>리플레이 열기</a>
+    </p>
+  </div>
+
+  <style>
+    .notfound {
+      max-width: 40rem;
+      margin: var(--space-8) auto;
+      padding: 0 var(--space-4);
+      display: grid;
+      gap: var(--space-3);
+    }
+    .notfound h1 {
+      font-size: var(--text-xl);
+    }
+    code {
+      font-family: var(--font-mono);
+      background: var(--color-surface-2);
+      padding: 0 var(--space-1);
+      border-radius: var(--radius-sm);
+    }
+  </style>
+</Layout>

@@ -1,0 +1,6 @@
+node_modules/
+coverage/
+.worktrees/
+plans/
+.claude/settings.local.json
+CLAUDE.local.md

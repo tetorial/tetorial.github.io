@@ -1,0 +1,7 @@
+# Astro·Vite 빌드 산출물 (git 추적 제외 — nested .gitignore는 이 디렉터리에 적용)
+dist/
+.astro/
+
+# Playwright 산출물
+playwright-report/
+test-results/

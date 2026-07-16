@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // DOM 어댑터(attachDom)가 EventTarget·Event·performance를 다루므로 DOM 타입이 필수다
+    // (루트 base의 lib=["ES2022"]에는 없다). lib은 상속이 아닌 대체이므로 ES2022를 함께 명시.
+    // 패키지 경계 내 override (renderer tsconfig와 동일 규약).
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src"]
+}

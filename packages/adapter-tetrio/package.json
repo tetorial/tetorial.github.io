@@ -1,0 +1,20 @@
+{
+  "name": "@tetorial/adapter-tetrio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tetorial/types": "workspace:*"
+  },
+  "peerDependencies": {
+    "@haelp/teto": "4.2.7"
+  },
+  "devDependencies": {
+    "@haelp/teto": "4.2.7"
+  }
+}

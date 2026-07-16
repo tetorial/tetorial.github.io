@@ -1,0 +1,20 @@
+{
+  "name": "@tetorial/gist-proxy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@tetorial/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.8.60",
+    "@cloudflare/workers-types": "^4.20250803.0",
+    "wrangler": "4.28.0"
+  }
+}

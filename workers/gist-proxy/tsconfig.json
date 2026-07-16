@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Workers 런타임 전역(Response·crypto·caches·DecompressionStream·ExportedHandler 등)과
+    // cloudflare:test(테스트) 타입. base의 lib은 ES2022뿐이라 DOM 대신 이 타입들을 쓴다.
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers"]
+  },
+  "include": ["src"]
+}

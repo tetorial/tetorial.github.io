@@ -1,0 +1,16 @@
+{
+  "name": "@tetorial/replay-tetrio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@haelp/teto": "4.2.7",
+    "@tetorial/adapter-tetrio": "workspace:*",
+    "@tetorial/types": "workspace:*"
+  }
+}

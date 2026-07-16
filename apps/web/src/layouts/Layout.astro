@@ -1,0 +1,121 @@
+---
+// 공통 셸 (apps-web §2) — 문서 메타·헤더(네비 슬롯)·푸터. 전 페이지가 이 레이아웃을 경유한다.
+// 내부 링크는 withBase 헬퍼 경유(D-13·D-18). 페이지별 자체 헤더 금지.
+import { withBase } from "../lib/base-url.ts";
+import { PRIMARY_NAV } from "../lib/nav.ts";
+import "../styles/tokens.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+const { title = "Tetorial", description = "모던 테트리스 리플레이 복기·노트 도구" } = Astro.props;
+const currentPath = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href={withBase("/favicon.svg")} type="image/svg+xml" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">본문 바로가기</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href={withBase("/")}>Tetorial</a>
+        <!-- 네비게이션 슬롯: v1은 홈/리플레이. 후속 마일스톤의 섹션 네비가 여기 들어온다. -->
+        <nav class="primary-nav" aria-label="주 메뉴">
+          {
+            PRIMARY_NAV.map((link) => {
+              const href = withBase(link.href);
+              const active =
+                link.href === "/" ? currentPath === href : currentPath.startsWith(href);
+              return (
+                <a href={href} aria-current={active ? "page" : undefined}>
+                  {link.label}
+                </a>
+              );
+            })
+          }
+          <slot name="nav-extra" />
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="site-main">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <p>Tetorial — 리플레이 복기 도구 (MVP). 지원: TETR.IO ≤ 1.7.8.</p>
+    </footer>
+
+    <style>
+      .skip-link {
+        position: absolute;
+        left: -999px;
+        top: 0;
+        background: var(--color-accent);
+        color: var(--color-accent-contrast);
+        padding: var(--space-2) var(--space-3);
+        z-index: 100;
+      }
+      .skip-link:focus {
+        left: var(--space-2);
+      }
+      .site-header {
+        height: var(--nav-height);
+        border-bottom: 1px solid var(--color-border);
+        background: var(--color-surface);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .header-inner {
+        max-width: 72rem;
+        margin: 0 auto;
+        height: 100%;
+        padding: 0 var(--space-4);
+        display: flex;
+        align-items: center;
+        gap: var(--space-5);
+      }
+      .brand {
+        font-weight: 700;
+        font-size: var(--text-lg);
+        color: var(--color-text);
+      }
+      .brand:hover {
+        text-decoration: none;
+      }
+      .primary-nav {
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+      }
+      .primary-nav a {
+        color: var(--color-text-muted);
+        padding: var(--space-1) var(--space-2);
+        border-radius: var(--radius-sm);
+      }
+      .primary-nav a[aria-current="page"] {
+        color: var(--color-text);
+        font-weight: 600;
+      }
+      .site-main {
+        min-height: calc(100vh - var(--nav-height) - 4rem);
+      }
+      .site-footer {
+        border-top: 1px solid var(--color-border);
+        padding: var(--space-4);
+        text-align: center;
+        color: var(--color-text-muted);
+        font-size: var(--text-sm);
+      }
+    </style>
+  </body>
+</html>

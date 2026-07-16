@@ -1,0 +1,54 @@
+# 웹 배포 (conventions §6): main push 시 apps/web 빌드 → GitHub Pages 배포(공식 actions/deploy-pages).
+# 배포는 조직 루트 사이트(D-18): astro.config의 site="https://tetorial.github.io" + base="/".
+# Worker URL은 저장소 변수 PUBLIC_WORKER_URL로 주입(conventions §7 — 시크릿 아님, 공개 URL).
+name: Deploy Web
+
+on:
+  push:
+    branches: [main]
+    # 웹·의존 패키지·잠금 파일·이 워크플로우 변경 시에만 배포
+    paths:
+      - "apps/web/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Pages 배포는 동시성 1개 (진행 중 배포를 취소하지 않고 큐잉)
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # 버전은 루트 package.json의 packageManager 필드를 따른다
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build apps/web
+        run: pnpm --filter @tetorial/web build
+        env:
+          PUBLIC_WORKER_URL: ${{ vars.PUBLIC_WORKER_URL }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

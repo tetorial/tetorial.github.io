@@ -1,0 +1,12 @@
+# gist-proxy Worker 설정 (배포 + vitest-pool-workers 테스트 공유)
+# 시크릿(GIST_PAT, TURNSTILE_SECRET)은 여기 두지 않는다 — `wrangler secret put`으로만 주입 (conventions §7).
+name = "tetorial-gist-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+# nodejs_compat 미사용 — Web 표준 API(crypto.subtle·DecompressionStream·Cache)만으로 구현 (명세 §7)
+
+[vars]
+# 프로덕션 배포 시 대시보드/CI에서 실제 값으로 덮어쓴다. 여기 값은 개발 기본값.
+ALLOWED_ORIGINS = "https://tetorial.github.io,http://localhost:4321"
+WRITE_ENABLED = "true"
+GIST_OWNER = "tetris-replay"

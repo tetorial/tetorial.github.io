@@ -1,0 +1,4 @@
+# 로컬 시크릿 — 절대 커밋 금지 (conventions §7). GIST_PAT 등은 여기에만.
+.dev.vars
+# wrangler/miniflare 로컬 산출물
+.wrangler/

@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // 파서·발췌·fixture 로더가 Node 전역(console·TextEncoder·node:fs·import.meta.url)을 쓴다.
+    // 루트 base는 types를 지정하지 않아 자동 포함에 의존하는데, 이 패키지 컴파일에는
+    // @types/node가 자동 포함되지 않아(pnpm 격리 node_modules) 명시한다. 패키지 경계 내 override.
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

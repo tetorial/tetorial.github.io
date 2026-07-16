@@ -1,0 +1,107 @@
+/* 전역 디자인 토큰 (apps-web §2 스타일 방침) — 색·간격·타이포는 커스텀 프로퍼티로 정의하고
+   컴포넌트는 토큰만 참조한다. 테마 설정(라이트/다크)의 전제. 후속 마일스톤이 이 토큰을 공유한다. */
+:root {
+  /* 색 — 라이트 기본 */
+  --color-bg: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef0f4;
+  --color-border: #d6dae1;
+  --color-text: #1a1d23;
+  --color-text-muted: #5b636e;
+  --color-accent: #2f6df6;
+  --color-accent-contrast: #ffffff;
+  --color-danger: #d93a4a;
+  --color-warn: #b8860b;
+  --color-success: #1a9e58;
+
+  /* 간격 (4px 스케일) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+
+  /* 타이포 */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  --text-sm: 0.85rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+
+  /* 반경·그림자 */
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+
+  --nav-height: 3.5rem;
+  --sidebar-width: 20rem;
+}
+
+/* 시스템 다크 선호(사용자가 명시 라이트로 고정하지 않은 경우). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #0d1017;
+    --color-surface: #161a22;
+    --color-surface-2: #1f242e;
+    --color-border: #2b323d;
+    --color-text: #e6e9ef;
+    --color-text-muted: #9aa3b0;
+    --color-accent: #5b8cff;
+    --color-accent-contrast: #0d1017;
+    --color-danger: #ff6b78;
+    --color-warn: #e0b64d;
+    --color-success: #46c98a;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* data-theme 명시 오버라이드가 항상 이긴다(설정 패널 토글). */
+:root[data-theme="dark"] {
+  --color-bg: #0d1017;
+  --color-surface: #161a22;
+  --color-surface-2: #1f242e;
+  --color-border: #2b323d;
+  --color-text: #e6e9ef;
+  --color-text-muted: #9aa3b0;
+  --color-accent: #5b8cff;
+  --color-accent-contrast: #0d1017;
+  --color-danger: #ff6b78;
+  --color-warn: #e0b64d;
+  --color-success: #46c98a;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
