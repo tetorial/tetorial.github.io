@@ -277,6 +277,24 @@ describe("I-7 수평 재밀착 불변식", () => {
     expect(eng.calls.slice(-2)).toEqual(["swapHold", "moveToWall(1)"]);
   });
 
+  it("소프트드롭(∞) 하강으로 턱이 열리면 수평 재밀착 (#41 표면 ④)", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0, sdf: Infinity });
+    input.press("ArrowLeft", 0);
+    input.tick(100); // 충전 → moveToWall(-1)
+    input.press("ArrowDown", 150); // 하강이 수평 여지를 열 수 있다 → 재확인
+    expect(eng.calls.slice(-2)).toEqual(["softDropToFloor", "moveToWall(-1)"]);
+  });
+
+  it("유한 SDF 하강 후에도 수평 재밀착 (ARR 0 충전 유지)", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0, sdf: 5 }); // sdfMs 100
+    input.press("ArrowLeft", 0);
+    input.tick(100); // 충전 → moveToWall(-1)
+    input.press("ArrowDown", 150); // moveDown 즉시 1회 → 수평 재확인
+    expect(eng.calls.slice(-2)).toEqual(["moveDown", "moveToWall(-1)"]);
+  });
+
   it("DAS 미충전 중에는 회전해도 재적용 없음 (재적용 가드)", () => {
     const eng = new RecordingEngine();
     const input = createInput(eng, { das: 100, arr: 0 });
@@ -308,6 +326,15 @@ describe("I-9 수직 재밀착 불변식", () => {
 
     input.press("KeyX", 10); // 회전(킥) → 바닥 부양 시뮬레이션
     expect(eng.calls.slice(-2)).toEqual(["rotate(cw)", "softDropToFloor"]);
+  });
+
+  it("DAS 충전 벽 이동이 바닥 여지를 열면 즉시 재밀착 (SDF ∞ 홀드 중)", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0, sdf: Infinity });
+    input.press("ArrowDown", 0); // softDropToFloor
+    input.press("ArrowLeft", 50); // move(-1) — 수평 이동도 바닥 여지를 열 수 있다
+    input.tick(150); // 충전 → moveToWall(-1) → 바닥 재확인
+    expect(eng.calls.slice(-2)).toEqual(["moveToWall(-1)", "softDropToFloor"]);
   });
 
   it("소프트드롭 미보유 중에는 회전해도 바닥 재적용 없음", () => {

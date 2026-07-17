@@ -182,13 +182,15 @@ class InputCoreImpl implements InputCore {
       if (!this.#wallFired) {
         this.#target.moveToWall(dir);
         this.#wallFired = true;
+        this.#reapplyFrom("h", t); // 벽 이동이 바닥 여지를 열 수 있다 (I-9)
       }
       return;
     }
     const due = Math.floor((t - chargeAt) / arr) + 1; // 충전 순간이 첫 반복
     while (this.#arrFired < due) {
-      this.#target.move(dir);
+      const moved = this.#target.move(dir);
       this.#arrFired++;
+      if (moved) this.#reapplyFrom("h", t); // 이동이 열어 준 바닥 여지에 즉시 낙하 (floor mode 한정)
     }
   }
 
@@ -199,8 +201,9 @@ class InputCoreImpl implements InputCore {
     if (ms <= 0) return; // 0 간격은 press에서 바닥 처리됨 (#isFloorMode)
     const due = Math.floor((t - this.#softStart) / ms);
     while (this.#sdfFired < due) {
-      this.#target.moveDown();
+      const moved = this.#target.moveDown();
       this.#sdfFired++;
+      if (moved) this.#reapplyFrom("v", t); // 하강이 턱 아래를 열면 즉시 재밀착 (#41 표면 ④)
     }
   }
 
@@ -278,7 +281,8 @@ class InputCoreImpl implements InputCore {
     this.#dasStart = t;
     this.#arrFired = 0;
     this.#wallFired = false;
-    this.#target.move(dir); // keydown 즉시 1회 (§3-1)
+    const moved = this.#target.move(dir); // keydown 즉시 1회 (§3-1)
+    if (moved) this.#reapplyFrom("h", t); // 이동이 바닥 여지를 열 수 있다 (floor mode 한정)
   }
 
   /* ── 소프트드롭 ───────────────────────────────────────── */
@@ -288,8 +292,10 @@ class InputCoreImpl implements InputCore {
     if (this.#softCount !== 1) return; // 이미 홀드 중
     this.#softStart = t;
     this.#sdfFired = 0;
-    if (this.#isFloorMode()) this.#target.softDropToFloor();
-    else this.#target.moveDown(); // 유한값: keydown 즉시 1회 (§3-3)
+    const moved = this.#isFloorMode()
+      ? this.#target.softDropToFloor()
+      : this.#target.moveDown(); // 유한값: keydown 즉시 1회 (§3-3)
+    if (moved) this.#reapplyFrom("v", t); // 하강이 턱 아래를 열면 즉시 재밀착 (#41 표면 ④)
   }
 
   #softRelease(): void {
@@ -331,6 +337,21 @@ class InputCoreImpl implements InputCore {
     // 때만 다음 재확인을 유발하므로 보드 크기에 유계 — 무한 루프 없음.
     let movedH = this.#reapplyHorizontal(t);
     let movedV = this.#reapplySoftDrop();
+    while (movedH || movedV) {
+      movedH = movedV ? this.#reapplyHorizontal(t) : false;
+      movedV = movedH ? this.#reapplySoftDrop() : false;
+    }
+  }
+
+  /**
+   * 한 축의 실전진 직후 **반대 축부터** 고정점까지 재확인한다 (명세 §2 — 이동·소프트드롭
+   * 계열 트리거, #41 표면 ④). 자기 축은 방금 전진으로 이미 포화 상태이므로 건너뛴다.
+   * 재확인은 즉시 모드 가드(arr 0 충전·floor mode)가 걸러내므로 반복 경로(I-10)는 불변.
+   */
+  #reapplyFrom(moved: "h" | "v", t: number): void {
+    if (this.#target.currentPiece === null) return;
+    let movedH = moved === "v" ? this.#reapplyHorizontal(t) : false;
+    let movedV = moved === "h" || movedH ? this.#reapplySoftDrop() : false;
     while (movedH || movedV) {
       movedH = movedV ? this.#reapplyHorizontal(t) : false;
       movedV = movedH ? this.#reapplySoftDrop() : false;
