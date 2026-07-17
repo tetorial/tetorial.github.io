@@ -1,13 +1,13 @@
-// S-8 오버레이 경로 — highlight 스트로크(API 레벨) → 캡처 → 직렬화 → 복원 왕복
+// S-8 오버레이 경로 — highlight 스트로크(API 레벨) → 캡처 → 열람 표시
 // (UI 미구현과 무관하게 데이터 경로 검증) (명세 §3-2·§7)
 import { pageStateSchema } from "@tetorial/types";
 import { describe, expect, it } from "vitest";
-import { createAuthoringSession, restoreAuthoringSession } from "./authoring.js";
+import { createAuthoringSession } from "./authoring.js";
 import { createViewerSession } from "./viewer.js";
 import { TEST_NOTE_ID, makeReplayOrigin, makeSnapshot } from "./testing/fixtures.js";
 
 describe("S-8 오버레이 경로", () => {
-  it("highlight 스트로크 → 캡처 → 직렬화 → 복원 왕복 (+ viewer 표시)", () => {
+  it("highlight 스트로크 → 캡처 → viewer 표시", () => {
     const s = createAuthoringSession({
       origin: makeReplayOrigin(),
       snapshot: makeSnapshot(),
@@ -28,10 +28,6 @@ describe("S-8 오버레이 경로", () => {
     expect(page.state.overlays?.highlights).toEqual(["__HH______", "__H_______"]);
     // types의 pageStateSchema 통과 (전방 호환 인코딩)
     expect(pageStateSchema.safeParse(page.state).success).toBe(true);
-
-    // 직렬화 → 복원 왕복
-    const r = restoreAuthoringSession(s.serialize());
-    expect(r.work.overlays).toEqual(s.work.overlays);
 
     // 열람 세션에서도 오버레이 보존
     const viewer = createViewerSession(s.toNote());

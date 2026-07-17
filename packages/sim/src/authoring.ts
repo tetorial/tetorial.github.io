@@ -27,21 +27,6 @@ export interface EngineControls {
   lock(): LockInfo;
 }
 
-/** localStorage 드래프트 직렬화 형태 — 무손실 왕복(S-4). gistId 키는 apps/web 책임(명세 §6) */
-export interface SerializedDraft {
-  v: 1;
-  origin: Origin;
-  snapshot: Snapshot;
-  noteId: string;
-  pageCounter: number;
-  pages: Page[];
-  selectedPageId: string | null;
-  work: PageState; // 작업 상태(진행 중 보드·오버레이) — 페이지로 안 만든 상태도 보존
-  undoStack: PageState[];
-  redoStack: PageState[];
-  dirty: boolean;
-}
-
 export interface AuthoringSession {
   readonly work: WorkView;
   readonly pages: readonly PageDraft[];
@@ -68,7 +53,6 @@ export interface AuthoringSession {
   redo(): void;
 
   toNote(): Note;
-  serialize(): SerializedDraft;
 }
 
 const UNDO_DEPTH = 50; // 명세 §3-1 언두 깊이 상한
@@ -327,7 +311,7 @@ class AuthoringSessionImpl implements AuthoringSession {
     this.#notify();
   }
 
-  /* ── 직렬화 ──────────────────────────────────────────── */
+  /* ── 노트 확정 ────────────────────────────────────────── */
 
   toNote(): Note {
     const note: Note = {
@@ -341,22 +325,6 @@ class AuthoringSessionImpl implements AuthoringSession {
     const violations = checkNoteLimits(note);
     if (violations.length > 0) throw new NoteLimitError(violations);
     return note;
-  }
-
-  serialize(): SerializedDraft {
-    return {
-      v: 1,
-      origin: deepClone(this.#origin),
-      snapshot: deepClone(this.#snapshot),
-      noteId: this.#noteId,
-      pageCounter: this.#pageCounter,
-      pages: deepClone(this.#pages),
-      selectedPageId: this.#selectedPageId,
-      work: captureWork(this.#engine, this.#overlay),
-      undoStack: deepClone(this.#undoStack),
-      redoStack: deepClone(this.#redoStack),
-      dirty: this.#dirty,
-    };
   }
 }
 
@@ -415,23 +383,5 @@ export function createAuthoringSession(
     undoStack: [],
     redoStack: [],
     dirty: false,
-  });
-}
-
-/** 드래프트 복원 (명세 §3 `AuthoringSession.restore` 대응 — QUESTIONS.md Q3) */
-export function restoreAuthoringSession(draft: SerializedDraft): AuthoringSession {
-  const { engine, overlay } = restoreWork(draft.snapshot, draft.work);
-  return new AuthoringSessionImpl({
-    origin: deepClone(draft.origin),
-    snapshot: deepClone(draft.snapshot),
-    noteId: draft.noteId,
-    pageCounter: draft.pageCounter,
-    engine,
-    overlay,
-    pages: deepClone(draft.pages),
-    selectedPageId: draft.selectedPageId,
-    undoStack: deepClone(draft.undoStack),
-    redoStack: deepClone(draft.redoStack),
-    dirty: draft.dirty,
   });
 }

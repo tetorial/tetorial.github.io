@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_HANDLING } from "@tetorial/input";
 import { resolveKeys } from "./settings.js";
-import { createSimulator, restoreSimulator } from "./simulator.js";
-import { Storage, MemoryStorage } from "./storage.js";
+import * as simulatorModule from "./simulator.js";
+import { createSimulator } from "./simulator.js";
 import { makeSnapshot } from "./testing.js";
 
 const KEYS = resolveKeys(null);
@@ -11,7 +11,7 @@ const BRANCH = {
   snapshot: makeSnapshot(),
 };
 
-// AW-5 시뮬레이터 종단 / AW-6 드래프트 복구.
+// AW-5 시뮬레이터 종단.
 // 업로드 경로(AW-5 PUT·AW-7 편집 키)는 수집함 경유로 재설계돼 note-collection.test.ts로 옮겼다(m3b §2).
 describe("AW-5 시뮬레이터 배선(키 조작 + 포커스 정지)", () => {
   it("AW-5 input 키 조작이 저작 세션 엔진을 움직인다", () => {
@@ -88,30 +88,9 @@ describe("M1b-5 웹 최소 배선 — 노트 id 생성·주입 (sim-m1b §6)", (
   });
 });
 
-describe("AW-6 드래프트 왕복 복구", () => {
-  it("AW-6 작업 상태(페이지·미저장 보드)를 직렬화→복원", () => {
-    const sim = createSimulator({ handling: DEFAULT_HANDLING, keys: KEYS, init: BRANCH });
-    sim.session.addPage("보존 페이지");
-    // 페이지로 만들지 않은 진행 중 보드 변경
-    sim.session.beginStroke({ kind: "cell", v: "G" });
-    sim.session.strokeTo({ x: 3, y: 0 });
-    sim.session.endStroke();
-    const draft = sim.session.serialize();
-    sim.dispose();
-
-    // 스토리지 왕복
-    const storage = new Storage(new MemoryStorage());
-    storage.setDraft("g1", draft);
-    const restoredDraft = storage.getDraft("g1");
-    expect(restoredDraft).not.toBeNull();
-
-    const restored = restoreSimulator(restoredDraft!, { handling: DEFAULT_HANDLING, keys: KEYS });
-    expect(restored.session.pages.length).toBe(1);
-    expect(restored.session.pages[0]?.comment).toBe("보존 페이지");
-    expect(restored.session.dirty).toBe(true);
-    // 미저장 보드(그리기 결과)가 work에 복원되어 있다
-    const board = restored.session.work.board;
-    expect(board[0]?.[3]).toBe("G");
-    restored.dispose();
+// 드래프트 영속 사슬 제거(m4a §2, #42) 후 잔재 부재를 고정한다.
+describe("AW-19 웹 드래프트 잔재 소멸 — simulator", () => {
+  it("AW-19 simulator 모듈에 restoreSimulator export가 없다", () => {
+    expect("restoreSimulator" in simulatorModule).toBe(false);
   });
 });

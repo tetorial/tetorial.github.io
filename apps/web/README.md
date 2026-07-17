@@ -84,8 +84,8 @@ e2e/                            # Playwright 스모크 (Worker·rawUrl 라우트
 ```
 
 - **수집함은 메모리 전용**이다. 미업로드 상태로 이탈하면 `beforeunload` **경고만** 하고 사라진다 —
-  localStorage 영속화는 하지 않는다(소유자 결정 2026-07-17). 기존 드래프트 핸드오프
-  (`handoff.ts`·`restoreSimulator`)와는 별개 경로로, 현행 동작을 유지한다.
+  localStorage 영속화는 하지 않는다(소유자 결정 2026-07-17). 홈→리플레이 로컬 파일 핸드오프
+  (`handoff.ts`)와는 별개 경로로, 현행 동작을 유지한다.
 - **`assembleNotesFile`(sim)은 단건 upsert**다. 묶음 조립은 웹의 `assembleCollectedFile`이 앞 결과를
   다음 호출의 `current`로 넘겨 순차 체이닝한다 — 노트 id 기준 교체/추가가 누적된다.
 - **재편집도 같은 수집함을 거친다**. `createSimulator({ existing })`는 노트 id를 보존하므로 조립에서
