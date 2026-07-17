@@ -4,6 +4,8 @@ import {
   loadNotesFiles,
   flattenSidebar,
   resolveNoteCandidates,
+  applyUploadedFile,
+  type LoadedNotesFile,
 } from "./notes-loading.js";
 import type { GistIndex } from "./worker-client.js";
 import { makeNote, makeNotesFile } from "./testing.js";
@@ -100,5 +102,50 @@ describe("AW-10 딥링크 노트 후보 해석(충돌)", () => {
 
   it("AW-10 없는 noteId는 후보 0개", () => {
     expect(resolveNoteCandidates(files, "nomatch1")).toEqual([]);
+  });
+});
+
+describe("AW-11 업로드 즉시 반영(재로드 없이 사이드바 갱신)", () => {
+  function loadedOf(clientId: string, notes: ReturnType<typeof makeNote>[], author?: string): LoadedNotesFile {
+    const file = makeNotesFile(clientId, notes, author);
+    return { clientId, ...(author ? { authorName: author } : {}), notes, file };
+  }
+
+  it("AW-11 처음 올린 파일은 열람 상태에 추가돼 사이드바에 바로 뜬다", () => {
+    const before: LoadedNotesFile[] = [loadedOf(clientB, [makeNote("bbbbbbbb", 5)], "남")];
+    expect(flattenSidebar(before, clientA).length).toBe(1);
+
+    const uploaded = makeNotesFile(clientA, [makeNote("aaaaaaaa", 1, "새 노트")], "corun");
+    const after = applyUploadedFile(before, uploaded);
+
+    const sidebar = flattenSidebar(after, clientA);
+    expect(sidebar.length).toBe(2);
+    const mine = sidebar.find((e) => e.noteId === "aaaaaaaa");
+    expect(mine?.isMine).toBe(true);
+    expect(mine?.authorName).toBe("corun");
+    expect(mine?.firstComment).toBe("새 노트");
+  });
+
+  it("AW-11 다시 올리면 같은 clientId 항목이 교체된다(중복 생성 없음)", () => {
+    const before: LoadedNotesFile[] = [loadedOf(clientA, [makeNote("aaaaaaaa", 1, "이전")], "corun")];
+    const uploaded = makeNotesFile(
+      clientA,
+      [makeNote("aaaaaaaa", 1, "고침"), makeNote("cccccccc", 2, "추가")],
+      "corun",
+    );
+    const after = applyUploadedFile(before, uploaded);
+
+    expect(after.length).toBe(1); // 파일은 기여자당 1개(D-5)
+    const sidebar = flattenSidebar(after, clientA);
+    expect(sidebar.map((e) => e.noteId)).toEqual(["aaaaaaaa", "cccccccc"]);
+    expect(sidebar[0]?.firstComment).toBe("고침");
+  });
+
+  it("AW-11 입력 배열을 변형하지 않는다(상태 교체로만 반영)", () => {
+    const before: LoadedNotesFile[] = [loadedOf(clientA, [makeNote("aaaaaaaa", 1)])];
+    const after = applyUploadedFile(before, makeNotesFile(clientB, [makeNote("bbbbbbbb", 2)]));
+    expect(before.length).toBe(1);
+    expect(after.length).toBe(2);
+    expect(after).not.toBe(before);
   });
 });

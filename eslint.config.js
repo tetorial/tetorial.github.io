@@ -66,6 +66,7 @@ export default tseslint.config(
       "apps/web/.astro/",
       "apps/web/playwright-report/",
       "apps/web/test-results/",
+      "apps/web/.wrangler/", // wrangler pages dev 생성물 (apps/web 구 QUESTIONS Q1과 동일 사유 — M3-B 게이트 승인)
     ],
   },
   ...tseslint.configs.recommended,

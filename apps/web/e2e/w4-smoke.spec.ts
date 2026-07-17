@@ -84,12 +84,15 @@ test.describe("W4-b 배선 결함 재현", () => {
   });
 
   // 결함 2: 시뮬레이터 홀드·넥스트 미표시 — WorkView.hold/next의 UI 바인딩 누락.
+  // 표기는 m3b AW-18에서 renderer 프리뷰 캔버스로 교체됐다 — 표시 내용은 data 속성으로 관측한다.
   test("결함2 홀드·넥스트 표시", async ({ page }) => {
     await enterSim(page);
     await expect(page.getByTestId("sim-next")).toBeVisible();
     await expect(page.getByTestId("sim-hold")).toBeVisible();
     // 넥스트는 최소 1개 이상의 미노 타입을 표시한다.
-    await expect(page.getByTestId("sim-next")).toContainText(/[IJLOSTZ]/);
+    await expect(page.getByTestId("sim-next")).toHaveAttribute("data-next", /[IJLOSTZ]/);
+    // 프리뷰 캔버스가 실제로 마운트됐다(텍스트가 아니라 그래픽 — AW-18).
+    await expect(page.getByTestId("sim-next").getByTestId("piece-preview").first()).toBeVisible();
   });
 
   // 결함 3: 시뮬레이터 종료 시 리플레이 첫 프레임으로 복귀 — 명세 §3-D는 "분기 프레임 복귀".

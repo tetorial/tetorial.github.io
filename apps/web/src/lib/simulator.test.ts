@@ -1,10 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { DEFAULT_HANDLING } from "@tetorial/input";
 import { resolveKeys } from "./settings.js";
-import { createSimulator, restoreSimulator, uploadNotes } from "./simulator.js";
+import { createSimulator, restoreSimulator } from "./simulator.js";
 import { Storage, MemoryStorage } from "./storage.js";
-import { WorkerClient, WorkerError } from "./worker-client.js";
-import { makeSnapshot, jsonResponse } from "./testing.js";
+import { makeSnapshot } from "./testing.js";
 
 const KEYS = resolveKeys(null);
 const BRANCH = {
@@ -12,15 +11,8 @@ const BRANCH = {
   snapshot: makeSnapshot(),
 };
 
-function sampleIndex(gistId = "g1") {
-  return {
-    gistId,
-    files: [{ name: "notes-k3XmP9qLwR2v.json", size: 1, rawUrl: "raw://n", truncated: false }],
-    fetchedAt: "2026-07-12T00:00:00.000Z",
-  };
-}
-
-// AW-5 시뮬레이터 종단 / AW-6 드래프트 복구 / AW-7 편집 키.
+// AW-5 시뮬레이터 종단 / AW-6 드래프트 복구.
+// 업로드 경로(AW-5 PUT·AW-7 편집 키)는 수집함 경유로 재설계돼 note-collection.test.ts로 옮겼다(m3b §2).
 describe("AW-5 시뮬레이터 배선(키 조작 + 포커스 정지)", () => {
   it("AW-5 input 키 조작이 저작 세션 엔진을 움직인다", () => {
     const sim = createSimulator({ handling: DEFAULT_HANDLING, keys: KEYS, init: BRANCH });
@@ -60,73 +52,6 @@ describe("AW-5 시뮬레이터 배선(키 조작 + 포커스 정지)", () => {
     const note = sim.session.toNote();
     expect(note.pages.length).toBe(2);
     expect(note.pages[0]?.comment).toBe("첫 배치");
-    sim.dispose();
-  });
-});
-
-describe("AW-5 업로드 조립·전송(PUT → 사이드바 index)", () => {
-  it("AW-5 성공 시 index 반환 + editKey 최초 생성 고지", async () => {
-    const sim = createSimulator({ handling: DEFAULT_HANDLING, keys: KEYS, init: BRANCH });
-    sim.session.addPage("페이지");
-    const fetchImpl = vi.fn(async () =>
-      jsonResponse({ gistId: "g1", file: "notes-k3XmP9qLwR2v.json", index: sampleIndex() }),
-    );
-    const worker = new WorkerClient({ baseUrl: "https://w.test", fetchImpl });
-    const storage = new Storage(new MemoryStorage());
-    const res = await uploadNotes({
-      worker,
-      storage,
-      gistId: "g1",
-      session: sim.session,
-      currentFile: null,
-      clientId: "k3XmP9qLwR2v",
-      authorName: "corun",
-    });
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.editKeyCreated).toBe(true); // 최초 → 1회 고지 트리거
-      expect(res.index.gistId).toBe("g1");
-    }
-    sim.dispose();
-  });
-
-  it("AW-5 한도 초과(pages>100)는 업로드 전 사전 차단(limit-exceeded)", async () => {
-    const sim = createSimulator({ handling: DEFAULT_HANDLING, keys: KEYS, init: BRANCH });
-    for (let i = 0; i < 101; i++) sim.session.addPage(`p${i}`);
-    const worker = new WorkerClient({ baseUrl: "https://w.test", fetchImpl: vi.fn() });
-    const res = await uploadNotes({
-      worker,
-      storage: new Storage(new MemoryStorage()),
-      gistId: "g1",
-      session: sim.session,
-      currentFile: null,
-      clientId: "k3XmP9qLwR2v",
-    });
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.code).toBe("limit-exceeded");
-    sim.dispose();
-  });
-});
-
-describe("AW-7 편집 키 수명주기(업로드 경로)", () => {
-  it("AW-7 다른 브라우저(editKey 부재)에서 403 → WorkerError 전파", async () => {
-    const sim = createSimulator({ handling: DEFAULT_HANDLING, keys: KEYS, init: BRANCH });
-    sim.session.addPage("p");
-    const fetchImpl = vi.fn(async () =>
-      jsonResponse({ code: "edit-key-mismatch", message: "불일치" }, { status: 403 }),
-    );
-    const worker = new WorkerClient({ baseUrl: "https://w.test", fetchImpl });
-    const storage = new Storage(new MemoryStorage()); // 초기화된 다른 브라우저
-    await expect(
-      uploadNotes({
-        worker,
-        storage,
-        gistId: "g1",
-        session: sim.session,
-        currentFile: null,
-        clientId: "k3XmP9qLwR2v",
-      }),
-    ).rejects.toBeInstanceOf(WorkerError);
     sim.dispose();
   });
 });

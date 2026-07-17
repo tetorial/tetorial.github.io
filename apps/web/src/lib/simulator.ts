@@ -1,4 +1,4 @@
-// 시뮬레이터 배선 — 저작 세션 + input 레이어(핸들링·키·메타·suspend) + 업로드 조립(AW-5·AW-7).
+// 시뮬레이터 배선 — 저작 세션 + input 레이어(핸들링·키·메타·suspend) (AW-5·AW-6).
 // input의 EngineControls는 currentPiece를 요구하지만 sim의 controls에는 없다 — apps/web이
 // session.controls + session.work.current를 합쳐 어댑터를 만든다(조립 계층의 책임).
 import { createInput } from "@tetorial/input";
@@ -8,17 +8,10 @@ import type {
   InputCore,
   KeyBindings,
 } from "@tetorial/input";
-import {
-  assembleNotesFile,
-  createAuthoringSession,
-  restoreAuthoringSession,
-  NoteLimitError,
-} from "@tetorial/sim";
+import { createAuthoringSession, restoreAuthoringSession } from "@tetorial/sim";
 import type { AuthoringSession, SerializedDraft } from "@tetorial/sim";
-import type { Note, NotesFile, Origin, Snapshot } from "@tetorial/types";
+import type { Note, Origin, Snapshot } from "@tetorial/types";
 import { generateNoteId } from "./note-id.js";
-import type { Storage } from "./storage.js";
-import type { GistIndex, WorkerClient } from "./worker-client.js";
 
 /** session.controls + work.current을 합쳐 input의 EngineControls 계약을 만족시키는 어댑터. */
 function makeInputTarget(
@@ -131,52 +124,5 @@ function wireSimulator(
   };
 }
 
-/* ── 업로드 조립·전송 (로컬 → 공유의 노트 경로, §3-D) ─────────────────────── */
-
-export type UploadNotesResult =
-  | { ok: true; index: GistIndex; file: string; editKeyCreated: boolean }
-  | { ok: false; code: "limit-exceeded"; violations: { message: string }[] };
-
-/**
- * 저작 세션의 노트를 조립·업로드한다(PUT /g/:id/notes).
- * - 한도 초과는 업로드 전 사전 차단(limit-exceeded).
- * - editKey는 storage에서 조회/생성(created=true면 UI가 1회 고지 — AW-7).
- * - WorkerError(403 등)는 그대로 throw해 호출자가 errors.toDisplayError로 매핑한다.
- */
-export async function uploadNotes(params: {
-  worker: WorkerClient;
-  storage: Storage;
-  gistId: string;
-  session: AuthoringSession;
-  currentFile: NotesFile | null; // 재편집 시 기존 자기 파일(rawUrl GET), 없으면 null
-  clientId: string;
-  authorName?: string;
-}): Promise<UploadNotesResult> {
-  let note: Note;
-  try {
-    note = params.session.toNote(); // 한도 초과 시 NoteLimitError
-  } catch (e) {
-    if (e instanceof NoteLimitError) {
-      return { ok: false, code: "limit-exceeded", violations: e.violations };
-    }
-    throw e;
-  }
-
-  const assembled = assembleNotesFile({
-    current: params.currentFile,
-    clientId: params.clientId,
-    ...(params.authorName ? { author: { name: params.authorName } } : {}),
-    upsert: note,
-  });
-  if (!assembled.ok) {
-    return { ok: false, code: "limit-exceeded", violations: assembled.violations };
-  }
-
-  const { editKey, created } = params.storage.getOrCreateEditKey(params.gistId);
-  const res = await params.worker.putNotes(params.gistId, {
-    clientId: params.clientId,
-    editKey,
-    file: assembled.file,
-  });
-  return { ok: true, index: res.index, file: res.file, editKeyCreated: created };
-}
+/* 업로드는 여기 없다 — 노트는 세션에서 수집함으로 확정되고(note-collection.finishNote),
+   묶음 조립·단일 PUT은 note-collection.uploadCollectedNotes가 담당한다(m3b §2 — 업로드 경로는 하나다). */

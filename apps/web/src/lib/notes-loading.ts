@@ -51,6 +51,30 @@ export async function loadNotesFiles(
   return loaded.filter((x): x is LoadedNotesFile => x !== null);
 }
 
+/**
+ * PUT 성공 직후, 올린 파일을 열람 상태에 반영한다(m3b AW-11 — 재로드 없이 사이드바 갱신).
+ * clientId가 같은 기존 항목은 교체, 없으면 추가한다.
+ * 반영 대상은 **우리가 조립해 보낸 파일**이다 — PUT 응답은 파일 내용이 아니라 이름·index만 준다.
+ * editKeyHash·createdAt·updatedAt은 Worker가 덮어쓰므로 여기의 sentinel 값과 다르지만, 사이드바가
+ * 읽는 것은 notes·author뿐이라 표시에는 정확하다(다음 로드 때 서버 값으로 갱신된다).
+ */
+export function applyUploadedFile(
+  files: readonly LoadedNotesFile[],
+  uploaded: NotesFile,
+): LoadedNotesFile[] {
+  const entry: LoadedNotesFile = {
+    clientId: uploaded.clientId,
+    ...(uploaded.author?.name ? { authorName: uploaded.author.name } : {}),
+    notes: uploaded.notes,
+    file: uploaded,
+  };
+  const idx = files.findIndex((f) => f.clientId === uploaded.clientId);
+  if (idx < 0) return [...files, entry];
+  const next = [...files];
+  next[idx] = entry;
+  return next;
+}
+
 /** 사이드바 항목(노트 단위 평탄화 — §3-D). */
 export interface SidebarEntry {
   clientId: string;

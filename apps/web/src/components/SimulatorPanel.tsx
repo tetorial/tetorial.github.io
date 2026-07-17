@@ -1,27 +1,40 @@
-// 시뮬레이터 패널 (apps-web §3-D) — 저작 세션 조작(키+포인터) + 페이지·주석 + 업로드.
+// 시뮬레이터 패널 (apps-web §3-D, m3b §2·§5) — 저작 세션 조작(키+포인터) + 페이지·주석 + 노트 완성.
+// 업로드는 여기 없다: "노트 완성"이 세션을 노트로 확정해 아일랜드의 메모리 수집함에 넘기고(AW-15),
+// 묶음 업로드는 시뮬레이터 밖에서 일어난다(AW-16).
 // 주석 입력 포커스 ↔ input.suspend 배선. 키보드는 attachDom(input, window)로 배선.
 import { useEffect, useRef, useState, useCallback } from "preact/hooks";
 import { attachDom } from "@tetorial/input";
 import BoardCanvas from "./BoardCanvas.tsx";
-import { createSimulator, uploadNotes, type SimulatorController } from "../lib/simulator.ts";
+import PiecePreview from "./PiecePreview.tsx";
+import {
+  createSimulator,
+  type CreateSimulatorParams,
+  type SimulatorController,
+} from "../lib/simulator.ts";
+import { finishNote } from "../lib/note-collection.ts";
 import { branchOrigin, type LoadedReplay } from "../lib/open-replay.ts";
 import { workFrame } from "../lib/view-frame.ts";
-import { toDisplayError } from "../lib/errors.ts";
-import { WorkerError } from "../lib/worker-client.ts";
-import { getWorkerClient } from "../lib/worker-client-factory.ts";
+import { holdPreview, nextPreviewSlice } from "../lib/piece-preview.ts";
 import type { Storage } from "../lib/storage.ts";
 import type { HandlingConfig, KeyBindings } from "@tetorial/input";
 import type { CaptureResult } from "@tetorial/adapter-tetrio";
 import type { Tool, WorkView } from "@tetorial/sim";
+import type { Note } from "@tetorial/types";
+
+/** 시뮬레이터 진입 경로 — 리플레이 분기(신규 노트) 또는 내 노트 이어서 편집(AW-13). */
+export type SimEntry =
+  | { kind: "branch"; branch: CaptureResult; frame: number; round: number; player: number }
+  | { kind: "existing"; note: Note };
 
 interface Props {
   storage: Storage;
   loaded: LoadedReplay;
-  round: number;
-  player: number;
-  branch: CaptureResult;
-  frame: number;
+  entry: SimEntry;
+  /** 이미 수집함에 있는 노트 id — 신규 노트 id 충돌 대조(파일의 id와 함께 sim에 넘긴다). */
+  collectedNoteIds: string[];
   settings: { handling: HandlingConfig; keys: KeyBindings };
+  /** 노트 완성 → 메모리 수집함으로. 업로드하지 않는다(AW-15). */
+  onCollect: (note: Note) => void;
   onExit: () => void;
 }
 
@@ -33,21 +46,29 @@ export default function SimulatorPanel(props: Props) {
   const [comment, setComment] = useState("");
   const [tool, setTool] = useState<Tool["kind"]>("cell");
   const [status, setStatus] = useState<string | null>(null);
-  const [editKeyNotice, setEditKeyNotice] = useState(false);
 
-  // 세션 생성 + input 배선 (분기 스냅샷에서 진입)
+  // 세션 생성 + input 배선 (분기 스냅샷 또는 기존 노트에서 진입)
   useEffect(() => {
-    if (!props.branch.ok) return;
-    const clientId = props.storage.getOrCreateClientId();
-    const myFile = props.loaded.notesFiles.find((f) => f.clientId === clientId);
+    const entry = props.entry;
+    let init: CreateSimulatorParams["init"];
+    if (entry.kind === "existing") {
+      // 재편집은 { existing }만 넘긴다 — id·origin·snapshot 전부 노트에서 온다(M1b-5).
+      init = { existing: entry.note };
+    } else {
+      if (!entry.branch.ok) return; // 분기 불가 — 아래 차단 화면을 그린다
+      const clientId = props.storage.getOrCreateClientId();
+      const myFile = props.loaded.notesFiles.find((f) => f.clientId === clientId);
+      init = {
+        origin: branchOrigin(props.loaded, entry.round, entry.player, entry.frame),
+        snapshot: entry.branch.snapshot,
+        // 파일의 기존 노트 + 아직 안 올린 수집 노트 모두와 id가 겹치지 않아야 한다.
+        existingNoteIds: [...(myFile?.notes.map((n) => n.id) ?? []), ...props.collectedNoteIds],
+      };
+    }
     const sim = createSimulator({
       handling: props.settings.handling,
       keys: props.settings.keys,
-      init: {
-        origin: branchOrigin(props.loaded, props.round, props.player, props.frame),
-        snapshot: props.branch.snapshot,
-        existingNoteIds: myFile?.notes.map((n) => n.id),
-      },
+      init,
       onLockError: () => setStatus("스폰 위치가 막혀 있습니다 — 셀을 지우고 다시 시도하세요."),
     });
     simRef.current = sim;
@@ -70,7 +91,7 @@ export default function SimulatorPanel(props: Props) {
       sim.dispose();
       simRef.current = null;
     };
-    // 분기 진입 시 1회만 세션을 만든다(props.branch는 진입 시점 고정 캡처).
+    // 진입 시 1회만 세션을 만든다(props.entry는 진입 시점 고정 캡처).
   }, []);
 
   // 시뮬레이터는 무전환 동시 조작(D-14)이라 게임 키가 항상 활성이다. 버튼에 포커스가 잔류하면
@@ -82,10 +103,10 @@ export default function SimulatorPanel(props: Props) {
   };
 
   const sim = simRef.current;
-  if (!props.branch.ok) {
+  if (props.entry.kind === "branch" && !props.entry.branch.ok) {
     return (
       <div class="sim-modal" data-testid="sim-blocked">
-        <p>이 지점은 분기할 수 없습니다: {props.branch.reason}</p>
+        <p>이 지점은 분기할 수 없습니다: {props.entry.branch.reason}</p>
         <button class="btn" onClick={props.onExit}>닫기</button>
       </div>
     );
@@ -106,45 +127,24 @@ export default function SimulatorPanel(props: Props) {
     }
   };
 
-  const doUpload = async (): Promise<void> => {
-    const source = props.loaded.source;
-    if (typeof source === "string") {
-      setStatus("먼저 리플레이를 업로드해야 노트를 공유할 수 있습니다.");
+  /** 노트 완성 — 수집함에 넣고 시뮬레이터를 닫는다. 노트 단위 한도 위반은 여기서 표시(AW-15). */
+  const doFinish = (): void => {
+    const res = finishNote(sim.session);
+    if (!res.ok) {
+      setStatus(`노트 한도 초과: ${res.violations.map((v) => v.message).join("; ")}`);
       return;
     }
-    setStatus("업로드 중…");
-    const clientId = props.storage.getOrCreateClientId();
-    const myFile = props.loaded.notesFiles.find((f) => f.clientId === clientId);
-    try {
-      const res = await uploadNotes({
-        worker: getWorkerClient(),
-        storage: props.storage,
-        gistId: source.gistId,
-        session: sim.session,
-        currentFile: myFile?.file ?? null,
-        clientId,
-        authorName: myFile?.authorName,
-      });
-      if (!res.ok) {
-        setStatus(`업로드 한도 초과: ${res.violations.map((v) => v.message).join("; ")}`);
-        return;
-      }
-      if (res.editKeyCreated) setEditKeyNotice(true);
-      setStatus("업로드 완료 — 사이드바가 갱신되었습니다.");
-    } catch (e) {
-      if (e instanceof WorkerError) {
-        setStatus(toDisplayError({ source: "worker", status: e.status, body: e.body, retryAfterMs: e.retryAfterMs }).title);
-      } else {
-        setStatus("업로드에 실패했습니다.");
-      }
-    }
+    props.onCollect(res.note);
+    props.onExit();
   };
+
+  const isEdit = props.entry.kind === "existing";
 
   return (
     <div class="sim-modal" role="dialog" aria-label="시뮬레이터" data-testid="sim-panel">
       <div class="sim-inner" onClick={blurClickedButton}>
         <div class="sim-head">
-          <h2>시뮬레이터</h2>
+          <h2>{isEdit ? "노트 이어서 편집" : "시뮬레이터"}</h2>
           <button class="btn" data-testid="sim-exit" onClick={props.onExit}>
             나가기
           </button>
@@ -206,15 +206,18 @@ export default function SimulatorPanel(props: Props) {
               ))}
             </ol>
 
-            <button class="btn" data-testid="sim-upload" onClick={() => void doUpload()}>
-              노트 업로드
+            <button
+              class="btn primary"
+              data-testid="sim-finish"
+              onClick={doFinish}
+              disabled={sim.session.pages.length === 0}
+            >
+              노트 완성
             </button>
+            <p class="hint">
+              완성한 노트는 아래 수집함에 모입니다 — 공유는 수집함에서 한 번에 올립니다.
+            </p>
             {status && <p class="status" data-testid="sim-status">{status}</p>}
-            {editKeyNotice && (
-              <p class="notice" data-testid="editkey-notice">
-                편집 키가 이 브라우저에 저장되었습니다. 잃어버리면 이 노트를 수정할 수 없습니다.
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -228,9 +231,12 @@ export default function SimulatorPanel(props: Props) {
         .sim-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
         .sim-head h2 { margin: 0; }
         .sim-body { display: grid; grid-template-columns: auto 1fr; gap: var(--space-5); }
-        .piece-bar { display: flex; gap: var(--space-4); margin-bottom: var(--space-2);
-          font-size: var(--text-sm); color: var(--color-text-muted); font-family: var(--font-mono); }
-        .piece-bar strong { color: var(--color-text); font-weight: 600; }
+        .piece-bar { display: flex; gap: var(--space-4); align-items: center; margin-bottom: var(--space-2);
+          font-size: var(--text-sm); color: var(--color-text-muted); }
+        .piece-slot { display: flex; gap: var(--space-2); align-items: center; }
+        .piece-empty { font-family: var(--font-mono); color: var(--color-text-muted); }
+        .piece-preview { display: block; }
+        .piece-preview.dimmed { opacity: 0.4; }
         .tool-row { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
         .sim-side { display: grid; gap: var(--space-3); align-content: start; }
         .comment-label { display: grid; gap: var(--space-1); }
@@ -238,8 +244,8 @@ export default function SimulatorPanel(props: Props) {
           border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); font: inherit; }
         .page-list { display: grid; gap: var(--space-1); font-size: var(--text-sm); padding-left: var(--space-4); }
         .page-list .link { background: none; border: none; color: var(--color-accent); margin-left: var(--space-2); }
-        .notice { color: var(--color-warn); font-size: var(--text-sm); }
-        .status { color: var(--color-text-muted); font-size: var(--text-sm); }
+        .hint { color: var(--color-text-muted); font-size: var(--text-sm); margin: 0; }
+        .status { color: var(--color-warn); font-size: var(--text-sm); }
         .btn { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border);
           border-radius: var(--radius-sm); background: var(--color-surface-2); color: var(--color-text); }
         .btn.primary { background: var(--color-accent); color: var(--color-accent-contrast); border-color: transparent; }
@@ -250,16 +256,34 @@ export default function SimulatorPanel(props: Props) {
   );
 }
 
-/** 시뮬레이터 홀드·넥스트 표시 (WorkView 바인딩 — 결함2). 그래픽 렌더는 UI/UX 개편 백로그(계층 C). */
+/** 시뮬레이터 홀드·넥스트 (m3b AW-18 — renderer 프리뷰 배선. 표시 계산은 lib/piece-preview). */
 function PieceBar({ work }: { work: WorkView }) {
+  const hold = holdPreview(work.hold);
+  const next = nextPreviewSlice(work.next);
+  // 그래픽 표기라 표시 상태가 텍스트로 남지 않는다 — 상태는 data 속성으로 관측 가능하게 둔다
+  // (게이트 11 시각 확인 · e2e 회귀의 신호. 이전 텍스트 표기가 그 역할을 했다).
   return (
     <div class="piece-bar">
-      <span data-testid="sim-hold">
-        홀드: <strong>{work.hold.piece ?? "—"}</strong>
-        {work.hold.piece && work.hold.locked ? " (잠김)" : ""}
+      <span
+        class="piece-slot"
+        data-testid="sim-hold"
+        data-piece={hold?.piece ?? ""}
+        data-locked={hold?.locked ? "true" : "false"}
+      >
+        홀드
+        {hold ? (
+          <PiecePreview piece={hold.piece} dimmed={hold.locked} label={`홀드 ${hold.piece}${hold.locked ? " (잠김)" : ""}`} />
+        ) : (
+          <span class="piece-empty">—</span>
+        )}
       </span>
-      <span data-testid="sim-next">
-        다음: <strong>{work.next.length > 0 ? work.next.slice(0, 5).join(" ") : "—"}</strong>
+      <span class="piece-slot" data-testid="sim-next" data-next={next.join("")}>
+        다음
+        {next.length > 0 ? (
+          next.map((p, i) => <PiecePreview piece={p} size={18} label={`다음 ${i + 1}번째 ${p}`} />)
+        ) : (
+          <span class="piece-empty">—</span>
+        )}
       </span>
     </div>
   );
