@@ -92,7 +92,7 @@ types → 의존성 0 (검증기 포함 자급자족)
 - **웹 배포** (`deploy-web.yml`): main push 시 `apps/web` 빌드 → **Cloudflare Pages 직접 업로드**(`wrangler pages deploy`, D-19). 필요 시크릿: `CLOUDFLARE_API_TOKEN`(Pages Edit 권한)·`CLOUDFLARE_ACCOUNT_ID`.
   - **base path 규약 (D-19)**: 사이트는 `https://tetorial.pages.dev` 루트 서빙. `astro.config.mjs`에 `site: "https://tetorial.pages.dev"` + `base: "/"`(기본값). 내부 링크·에셋의 `import.meta.env.BASE_URL` 헬퍼 경유는 **계속 의무**(향후 하위 경로 이전 대비) — 루트 절대 경로 하드코딩은 여전히 금지.
 - **Worker 배포**: 자동화 워크플로 없음. 수동 `pnpm --filter @tetorial/gist-proxy deploy`(wrangler)로 배포한다. 자동화는 #20(I-1)에서 검토 중. 시크릿은 §7.
-- 동적 라우트: 경로형 딥링크(`/replays/{id}`)는 `apps/web/public/_redirects`의 200 리라이트로 서빙한다(D-19 — 404 트릭 불필요). 경로 기반 동적 라우트를 새로 만들 때는 정적 생성 가능 여부를 먼저 검토하고, 불가하면 `_redirects`에 등재한다.
+- 동적 라우트: 경로형 딥링크(`/replays/{id}`)는 `apps/web/public/_redirects`의 200 리라이트로 서빙한다(D-19 — 404 트릭 불필요). 경로 기반 동적 라우트를 새로 만들 때는 정적 생성 가능 여부를 먼저 검토하고, 불가하면 `_redirects`에 등재한다. **주의**: 프록시(200) 규칙이 활성이면 Pages 기본 슬래시 정규화가 전역에서 꺼진다 — 슬래시 없는 페이지 경로는 `_redirects`에 명시 리다이렉트로 등재해야 한다 (2026-07-17 실측).
 
 ## 7. 시크릿·환경 관리
 
