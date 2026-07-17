@@ -97,7 +97,7 @@ types → 의존성 0 (검증기 포함 자급자족)
 ## 7. 시크릿·환경 관리
 
 - **GIST_PAT** (부계정 fine-grained PAT, gist 스코프): Cloudflare Worker secret으로만 존재 (`wrangler secret put GIST_PAT`). 리포·로그·에러 메시지에 절대 노출 금지. 로컬 개발은 `workers/gist-proxy/.dev.vars` (gitignore 대상).
-- GitHub Actions에는 Cloudflare 배포용 `CLOUDFLARE_API_TOKEN`만 저장한다. GIST_PAT는 Actions에 두지 않는다(배포 파이프라인이 알 필요 없음).
+- GitHub Actions 시크릿은 Cloudflare 배포용 2종만: `CLOUDFLARE_API_TOKEN`(Pages Edit 권한)·`CLOUDFLARE_ACCOUNT_ID`. GIST_PAT는 Actions에 두지 않는다(배포 파이프라인이 알 필요 없음).
 - 웹 앱이 바라보는 Worker URL은 `PUBLIC_WORKER_URL` 환경변수로 주입 (dev: `wrangler dev` 로컬 주소 / prod: workers.dev 또는 커스텀 라우트).
 - 클라이언트 localStorage 키 네임스페이스: `tetorial:` 접두사 (예: `tetorial:editKey:<gistId>`, `tetorial:clientId`).
 
