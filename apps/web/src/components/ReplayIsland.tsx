@@ -19,6 +19,7 @@ import {
 import { canEditNote } from "../lib/note-viewer.ts";
 import { holdPreview, nextPreviewSlice } from "../lib/piece-preview.ts";
 import { takePendingReplay } from "../lib/handoff.ts";
+import { resolveGistInput, GIST_INPUT_PLACEHOLDER } from "../lib/gist-input.ts";
 import { openLocalReplay, openGistReplay, type LoadedReplay } from "../lib/open-replay.ts";
 import {
   allRoundIndices,
@@ -67,6 +68,8 @@ export default function ReplayIsland() {
   const [theme, setThemeState] = useState<ThemePref>(() => storage.getTheme());
   const [showSettings, setShowSettings] = useState(false);
   const [simEntry, setSimEntry] = useState<SimEntry | null>(null);
+  /** 분기 불가 사유 인라인 안내(AW-22 — alert·모달 금지). 다른 조작 시 갱신·해제된다. */
+  const [branchNotice, setBranchNotice] = useState<string | null>(null);
   /** 노트 수집함 — 리플레이 단위 메모리 전용. 영속화 없음(m3b §2 — 소유자 결정 2026-07-17). */
   const [collected, setCollected] = useState<Note[]>([]);
   // 업로드 결과 표시는 수집함 **밖**에 산다 — 성공하면 수집함이 비어 사라지므로, 안에 두면
@@ -117,7 +120,8 @@ export default function ReplayIsland() {
     try {
       worker = getWorkerClient();
     } catch {
-      setError(toDisplayError({ source: "worker", status: 503, body: { code: "writes-disabled" } }));
+      // 읽기 경로의 실패다 — writes-disabled 위장 대신 전용 입력으로 정직하게 표기(AW-21).
+      setError(toDisplayError({ source: "worker-unconfigured" }));
       setPhase("error");
       return;
     }
@@ -180,6 +184,7 @@ export default function ReplayIsland() {
     if (!loaded) return;
     setRound(r);
     setPlayer(p);
+    setBranchNotice(null); // 다른 지점으로 이동 — 지난 분기 불가 안내는 현재 상태가 아니다
     buildSession(loaded, r, p);
   };
 
@@ -265,7 +270,7 @@ export default function ReplayIsland() {
   const loaded = loadedRef.current;
 
   if (phase === "empty") {
-    return <EmptyState onLocalText={openLocalText} onGist={(id) => void loadGist(id)} />;
+    return <EmptyState onLocalText={openLocalText} />;
   }
   if (phase === "loading") {
     return <p class="status" data-testid="loading">리플레이를 불러오는 중…</p>;
@@ -338,13 +343,16 @@ export default function ReplayIsland() {
           onBranch={() => {
             const result = session.captureBranch();
             if (!result.ok) {
-              alert(`분기 불가: ${result.reason}`);
+              // 실패는 여기서 인라인 안내로 소화한다(AW-22) — SimulatorPanel에는 성공만 넘어간다.
+              setBranchNotice(`분기 불가: ${result.reason}`);
               return;
             }
+            setBranchNotice(null);
             setSimEntry({ kind: "branch", branch: result, frame: session.frame, round, player });
           }}
           hasGist={typeof loaded.source !== "string"}
           limitReason={noteLimitReason(loaded.notesFiles)}
+          blockedReason={branchNotice}
         />
 
         {collected.length > 0 && (
@@ -474,14 +482,19 @@ export default function ReplayIsland() {
 
 /* ── 하위 컴포넌트 ────────────────────────────────────────────── */
 
-function EmptyState({
-  onLocalText,
-  onGist,
-}: {
-  onLocalText: (text: string) => void;
-  onGist: (id: string) => void;
-}) {
+function EmptyState({ onLocalText }: { onLocalText: (text: string) => void }) {
   const [gist, setGist] = useState("");
+  const [gistError, setGistError] = useState<string | null>(null);
+  // 홈(OpenIsland)과 동일 의미론(AW-20) — 해석 후 경로형 정규형 URL로 이동해야
+  // 새로고침 시에도 유실되지 않는다(M1d-1 발신 규약).
+  const openGist = (): void => {
+    const res = resolveGistInput(gist);
+    if (!res.ok) {
+      setGistError(res.message);
+      return;
+    }
+    window.location.href = res.url;
+  };
   return (
     <div class="empty" data-testid="replay-empty">
       <p>리플레이 파일을 열어 시작하세요.</p>
@@ -497,14 +510,20 @@ function EmptyState({
       <div class="gist-row">
         <input
           type="text"
-          placeholder="gist ID"
+          placeholder={GIST_INPUT_PLACEHOLDER}
           value={gist}
+          data-testid="empty-gist-input"
           onInput={(e) => setGist((e.target as HTMLInputElement).value)}
         />
-        <button class="btn" onClick={() => gist && onGist(gist)}>
+        <button class="btn" onClick={openGist} data-testid="empty-gist-open">
           공유 링크 열기
         </button>
       </div>
+      {gistError && (
+        <p class="error-detail" role="alert" data-testid="empty-gist-error">
+          {gistError}
+        </p>
+      )}
       <p><a href={withBase("/")}>← 홈으로</a></p>
     </div>
   );
@@ -691,11 +710,14 @@ function BranchBar({
   onBranch,
   hasGist,
   limitReason,
+  blockedReason,
 }: {
   onBranch: () => void;
   hasGist: boolean;
   /** 노트 합산 한도 도달 시 차단 사유(M1d-6). null이면 정상 진입. */
   limitReason: string | null;
+  /** captureBranch 실패 사유 인라인 안내(AW-22). null이면 표시 없음. */
+  blockedReason: string | null;
 }) {
   // 차단 지점은 신규 노트 생성 진입(분기 → 시뮬레이터 진입 버튼)이다 — apps-web-m1d §4.
   // 재편집(existing)은 노트 수가 늘지 않으므로 차단 대상이 아니다(#37의 재편집 UI에도 유지).
@@ -716,6 +738,11 @@ function BranchBar({
       )}
       {limitReason === null && !hasGist && (
         <span class="hint">노트를 공유하려면 먼저 리플레이를 업로드해야 합니다.</span>
+      )}
+      {blockedReason !== null && (
+        <span class="hint limit" role="status" data-testid="branch-blocked">
+          {blockedReason}
+        </span>
       )}
     </div>
   );

@@ -26,7 +26,8 @@ export type ErrorInput =
   | { source: "worker"; status: number; body: WorkerErrorBody; retryAfterMs?: number | null }
   | { source: "integrity" } // sha256 불일치 / gunzip 실패 (클라이언트 검출)
   | { source: "playback" } // 재생 엔진 오류(버전 초과 추정 — replay §7)
-  | { source: "network" }; // fetch 실패(오프라인 등)
+  | { source: "network" } // fetch 실패(오프라인 등)
+  | { source: "worker-unconfigured" }; // 읽기 경로: Worker URL 미설정(getWorkerClient 실패 — AW-21)
 
 // §6 표의 고정 문구.
 const TXT = {
@@ -37,6 +38,7 @@ const TXT = {
   limitExceeded: "업로드 한도를 초과했습니다",
   retry: "잠시 후 다시 시도해 주세요",
   writesDisabled: "저장 기능이 일시 중지되었습니다",
+  workerUnconfigured: "리플레이 조회 서비스가 설정되지 않았습니다",
   originForbidden: "이 출처에서는 요청이 허용되지 않습니다",
   badRequest: "요청 형식이 올바르지 않습니다",
   upstream: "저장소 연결에 문제가 발생했습니다",
@@ -65,6 +67,8 @@ export function toDisplayError(input: ErrorInput): DisplayError {
       return { title: TXT.playback, action: { kind: "none" } };
     case "network":
       return { title: TXT.network, action: { kind: "retry", retryAfterMs: null } };
+    case "worker-unconfigured":
+      return { title: TXT.workerUnconfigured, action: { kind: "none" } };
     case "worker":
       return mapWorkerError(input);
   }
