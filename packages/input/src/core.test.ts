@@ -3,18 +3,30 @@ import { describe, expect, it } from "vitest";
 import { createInput } from "./core.js";
 import type { EngineControls, MetaAction } from "./types.js";
 
-/** 호출을 순서대로 기록하는 엔진 mock. currentPiece는 큐 상태 시뮬레이션용 필드 */
+/**
+ * 호출을 순서대로 기록하는 엔진 mock. currentPiece는 큐 상태 시뮬레이션용 필드.
+ * moveToWall·softDropToFloor는 "이미 벽/바닥에 닿아 있으면 false" 를 흉내 내도록
+ * #wallDir·#onFloor로 최소한의 위치 상태를 추적한다 (I-7~I-9의 재적용 고정점이
+ * 실제로 수렴함을 검증하려면 이 mock도 "움직이지 않으면 false"를 반환해야 한다).
+ * rotate·swapHold·hardDrop은 벽/바닥에서 미노를 이탈시킬 수 있는 디스패치이므로
+ * 두 플래그를 초기화한다.
+ */
 class RecordingEngine implements EngineControls {
   calls: string[] = [];
   currentPiece: object | null = {};
+  #wallDir: -1 | 1 | null = null;
+  #onFloor = false;
 
   move(dir: -1 | 1): boolean {
     this.calls.push(`move(${dir})`);
+    this.#wallDir = null;
     return true;
   }
   moveToWall(dir: -1 | 1): boolean {
     this.calls.push(`moveToWall(${dir})`);
-    return true;
+    const moved = this.#wallDir !== dir;
+    this.#wallDir = dir;
+    return moved;
   }
   moveDown(): boolean {
     this.calls.push("moveDown");
@@ -22,18 +34,26 @@ class RecordingEngine implements EngineControls {
   }
   softDropToFloor(): boolean {
     this.calls.push("softDropToFloor");
-    return true;
+    const moved = !this.#onFloor;
+    this.#onFloor = true;
+    return moved;
   }
   rotate(dir: "cw" | "ccw" | "180"): boolean {
     this.calls.push(`rotate(${dir})`);
+    this.#wallDir = null;
+    this.#onFloor = false;
     return true;
   }
   swapHold(): boolean {
     this.calls.push("swapHold");
+    this.#wallDir = null;
+    this.#onFloor = false;
     return true;
   }
   hardDrop(): void {
     this.calls.push("hardDrop");
+    this.#wallDir = null;
+    this.#onFloor = false;
   }
 }
 
@@ -63,14 +83,17 @@ describe("I-1 DAS/ARR 타이밍", () => {
     expect(eng.calls).not.toContain("moveToWall(1)");
   });
 
-  it("arr === 0 → das 경과 시점에 moveToWall 1회뿐", () => {
+  it("arr === 0 → das 경과 시점에 moveToWall (다른 디스패치 없으면 재호출 없음)", () => {
+    // 구 "1회뿐" 의미론은 M3-A(#41)에서 "유지 중 밀착 불변식"으로 개정됨 (I-7~I-9 참조):
+    // 이 테스트는 디스패치가 없는 유휴 tick 구간에서 재호출이 없음을 확인할 뿐,
+    // moveToWall이 세션 내 정확히 1회만 호출된다는 보장은 더 이상 아니다.
     const eng = new RecordingEngine();
     const input = createInput(eng, { das: 100, arr: 0 });
     input.press("ArrowLeft", 0);
     input.tick(99);
     expect(eng.calls).toEqual(["move(-1)"]); // 아직 벽 이동 없음
     input.tick(100);
-    input.tick(200); // 반복되지 않음
+    input.tick(200); // 유휴 tick — 추가 디스패치 없으므로 재호출 없음
     expect(eng.calls).toEqual(["move(-1)", "moveToWall(-1)"]);
   });
 });
@@ -228,5 +251,125 @@ describe("I-6 결정론", () => {
       return eng.calls;
     };
     expect(run()).toEqual(run());
+  });
+});
+
+describe("I-7 수평 재밀착 불변식", () => {
+  it("ARR 0·DAS 충전 유지 중 회전(킥 포함)으로 벽에서 이탈하면 그 즉시 재밀착 (#41)", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0 });
+    input.press("ArrowLeft", 0); // move(-1)
+    input.tick(100); // DAS 충전 → moveToWall(-1)
+    expect(eng.calls).toEqual(["move(-1)", "moveToWall(-1)"]);
+
+    input.press("KeyX", 150); // 회전(킥) → 벽 이탈 시뮬레이션
+    expect(eng.calls.slice(-2)).toEqual(["rotate(cw)", "moveToWall(-1)"]);
+  });
+
+  it("ARR 0·DAS 충전 유지 중 홀드로 벽에서 이탈하면 그 즉시 재밀착", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0 });
+    input.press("ArrowRight", 0); // move(1)
+    input.tick(100); // DAS 충전 → moveToWall(1)
+    expect(eng.calls).toEqual(["move(1)", "moveToWall(1)"]);
+
+    input.press("KeyC", 150); // swapHold(새 미노) → 벽 이탈 시뮬레이션
+    expect(eng.calls.slice(-2)).toEqual(["swapHold", "moveToWall(1)"]);
+  });
+
+  it("소프트드롭(∞) 하강으로 턱이 열리면 수평 재밀착 (#41 표면 ④)", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0, sdf: Infinity });
+    input.press("ArrowLeft", 0);
+    input.tick(100); // 충전 → moveToWall(-1)
+    input.press("ArrowDown", 150); // 하강이 수평 여지를 열 수 있다 → 재확인
+    expect(eng.calls.slice(-2)).toEqual(["softDropToFloor", "moveToWall(-1)"]);
+  });
+
+  it("유한 SDF 하강 후에도 수평 재밀착 (ARR 0 충전 유지)", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0, sdf: 5 }); // sdfMs 100
+    input.press("ArrowLeft", 0);
+    input.tick(100); // 충전 → moveToWall(-1)
+    input.press("ArrowDown", 150); // moveDown 즉시 1회 → 수평 재확인
+    expect(eng.calls.slice(-2)).toEqual(["moveDown", "moveToWall(-1)"]);
+  });
+
+  it("DAS 미충전 중에는 회전해도 재적용 없음 (재적용 가드)", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0 });
+    input.press("ArrowLeft", 0); // move(-1)
+    input.press("KeyX", 50); // DAS(100) 미충전 시점의 회전
+    expect(eng.calls).toEqual(["move(-1)", "rotate(cw)"]); // moveToWall 없음
+  });
+});
+
+describe("I-8 락 후 재밀착", () => {
+  it("ARR 0·방향 홀드 중 하드드롭 → 새 미노 스폰 직후 즉시 벽으로 이동", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0 });
+    input.press("ArrowLeft", 0); // move(-1)
+    input.tick(100); // DAS 충전 → moveToWall(-1)
+    expect(eng.calls).toEqual(["move(-1)", "moveToWall(-1)"]);
+
+    input.press("Space", 150); // 하드드롭(락) → 새 미노 스폰
+    expect(eng.calls.slice(-2)).toEqual(["hardDrop", "moveToWall(-1)"]);
+  });
+});
+
+describe("I-9 수직 재밀착 불변식", () => {
+  it("SDF ∞ 홀드 중 회전으로 부양하면 직후 즉시 바닥 재밀착", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { sdf: Infinity });
+    input.press("ArrowDown", 0); // softDropToFloor
+    expect(eng.calls).toEqual(["softDropToFloor"]);
+
+    input.press("KeyX", 10); // 회전(킥) → 바닥 부양 시뮬레이션
+    expect(eng.calls.slice(-2)).toEqual(["rotate(cw)", "softDropToFloor"]);
+  });
+
+  it("DAS 충전 벽 이동이 바닥 여지를 열면 즉시 재밀착 (SDF ∞ 홀드 중)", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 0, sdf: Infinity });
+    input.press("ArrowDown", 0); // softDropToFloor
+    input.press("ArrowLeft", 50); // move(-1) — 수평 이동도 바닥 여지를 열 수 있다
+    input.tick(150); // 충전 → moveToWall(-1) → 바닥 재확인
+    expect(eng.calls.slice(-2)).toEqual(["moveToWall(-1)", "softDropToFloor"]);
+  });
+
+  it("소프트드롭 미보유 중에는 회전해도 바닥 재적용 없음", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { sdf: Infinity });
+    input.press("KeyX", 0); // 소프트드롭 홀드 없음
+    expect(eng.calls).toEqual(["rotate(cw)"]); // softDropToFloor 없음
+  });
+});
+
+describe("I-10 기존 경로 무변화", () => {
+  it("ARR > 0 경로는 회전 후 즉시가 아니라 다음 ARR 틱에 이동한다", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { das: 100, arr: 10 });
+    input.press("ArrowLeft", 0); // move(-1) 즉시
+    input.tick(100); // DAS 충전 → 첫 ARR 반복
+    const movesBeforeRotate = count(eng.calls, "move(-1)");
+    expect(eng.calls).not.toContain("moveToWall(-1)");
+
+    input.press("KeyX", 105); // 회전 — arr > 0 이므로 즉시 재적용 없음
+    expect(eng.calls[eng.calls.length - 1]).toBe("rotate(cw)");
+    expect(eng.calls).not.toContain("moveToWall(-1)");
+
+    input.tick(110); // 다음 ARR 틱에 정상 이동 (동작 불변)
+    expect(count(eng.calls, "move(-1)")).toBeGreaterThan(movesBeforeRotate);
+  });
+
+  it("SDF 유한 반복 경로는 회전 후에도 즉시 재적용 없이 기존 sdfMs 간격 유지", () => {
+    const eng = new RecordingEngine();
+    const input = createInput(eng, { sdf: 5 }); // sdfMs = 500/5 = 100
+    input.press("ArrowDown", 0); // moveDown 즉시 1
+    input.press("KeyX", 10); // 회전 — floor mode 아니므로 즉시 재적용 없음
+    expect(eng.calls).toEqual(["moveDown", "rotate(cw)"]);
+
+    input.tick(100); // 기존 sdfMs 간격대로 정상 진행 (동작 불변)
+    expect(count(eng.calls, "moveDown")).toBe(2);
   });
 });
