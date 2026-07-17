@@ -5,3 +5,6 @@ dist/
 # Playwright 산출물
 playwright-report/
 test-results/
+
+# wrangler/miniflare 로컬 산출물 (E2E webServer — apps-web-m1d §6)
+.wrangler/

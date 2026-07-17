@@ -28,6 +28,17 @@ export function withBase(path: string, base: string = currentBase()): string {
   return b + rel;
 }
 
+/**
+ * location.pathname에서 base 접두를 벗겨 앱 루트 기준 경로("/replays/x" 등)를 얻는다.
+ * 경로형 딥링크 파서(deeplink.ts)가 사용한다 — 루트 절대 경로 하드코딩 금지(AW-1)의
+ * 수신 측 대칭. base 접두가 없으면 원문을 그대로 반환한다(방어적).
+ */
+export function stripBase(pathname: string, base: string = currentBase()): string {
+  const b = normalizeBase(base);
+  if (pathname === b || `${pathname}/` === b) return "/";
+  return pathname.startsWith(b) ? `/${pathname.slice(b.length)}` : pathname;
+}
+
 /** 내부 링크·에셋 후보로 볼 속성 목록. */
 const URL_ATTRS = ["href", "src", "srcset", "action", "poster"] as const;
 

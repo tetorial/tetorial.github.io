@@ -7,6 +7,25 @@ Astro 정적 셸 + Preact 아일랜드(D-12)로 구성한 **전 패키지의 조
   `site="https://tetorial.pages.dev"` + `base="/"`. 내부 링크·에셋은 `withBase` 헬퍼 경유 의무.
   경로형 딥링크(`/replays/{id}`)는 `public/_redirects`의 200 리라이트로 서빙.
 - 런타임 의존성(승인): `astro`·`@astrojs/preact`·`preact`·`pako`·`zod`(응답 검증, 명세 §4). 워크스페이스 패키지 전부.
+  devDependency로 `wrangler`(E2E 서빙 전용 — 아래 딥링크·라우팅 절 참조).
+
+## 딥링크·라우팅 (M1d — F-1 동결)
+
+정규형은 **경로형뿐**이다: `{origin}/replays/<replayId>[?note=<clientId>.<noteId>][#p<n>]`
+(`src/lib/deeplink.ts`). 구형 `?gist=`·`page=` 해석은 제거됐다(공유된 링크 0개 — D-2 따름정리).
+
+- **replayId**: 32자 hex gistId는 16바이트 → base64url 22자(패딩 없음)로 인코딩해 발신한다.
+  32-hex가 아니면 원문 그대로 발신(GitHub id 체계 변경 대비 fallback). 수신은 세그먼트가
+  22자 + `[A-Za-z0-9_-]`면 디코딩해 32-hex 복원, 아니면 원문을 그대로 gistId로 쓴다
+  (`encodeReplayId`/`decodeReplayId`).
+- **note**: 발신은 항상 `<clientId>.<noteId>` 한정형. 수신은 bare `noteId`도 관용 해석.
+- **fragment `#p<n>`**: 1-기준 페이지 서수, best-effort — 부재·범위 밖이면 첫 페이지
+  (`pageIndexFromOrdinal`). 에러가 아니다.
+- **경로 해석**: 브라우저는 `/replays/<id>`에 머물지만 서버는 `_redirects`의 200 리라이트로
+  `/replay/`를 서빙한다(D-19). 파서는 `location.pathname`에서 `stripBase`로 base 접두를 벗긴
+  뒤 세그먼트를 추출한다 — 루트 절대 경로 하드코딩 금지(AW-1).
+- **로컬 개발(astro dev)**: `_redirects`는 Vite dev 서버에 적용되지 않으므로, `astro.config.mjs`의
+  작은 Vite 미들웨어가 `/replays/*` → `/replay/`를 동일하게 흉내낸다(선택 항목, DX용).
 
 ## 구조
 
@@ -22,8 +41,9 @@ src/
 │   └── BoardCanvas.tsx         # @tetorial/renderer 마운트
 ├── styles/tokens.css           # 디자인 토큰(--color-*·--space-* …) + 라이트/다크 (§2)
 └── lib/                        # 프레임워크 무관 조립 로직(전부 유닛 테스트 — AW-*)
-    ├── base-url.ts             # withBase 헬퍼 + 하드코딩 경로 스캔 (AW-1)
-    ├── deeplink.ts             # ?gist&note&page 파싱/조립 (AW-1·AW-10)
+    ├── base-url.ts             # withBase 헬퍼 + stripBase(수신) + 하드코딩 경로 스캔 (AW-1)
+    ├── deeplink.ts             # 경로형 딥링크 조립/파싱 — /replays/<id>?note=&#p<n> (M1d-1~5)
+    ├── note-limit.ts           # 노트 생성 한도 차단 — 전체 notes-*.json 합산 (M1d-6)
     ├── open-replay.ts          # 로컬/gist 열기 오케스트레이션 + 무결성 게이트 (AW-2·AW-4)
     ├── handoff.ts              # 홈→리플레이 로컬 파일 1회성 전달(IndexedDB — 대용량 생존, W4)
     ├── playback-session.ts     # createPlayback + PlaybackClock 셸 (AW-2)
@@ -67,6 +87,9 @@ pnpm --filter @tetorial/web dev        # 개발 서버
 pnpm --filter @tetorial/web build      # 정적 빌드 (dist/)
 pnpm --filter @tetorial/web typecheck  # tsc --noEmit
 pnpm --filter @tetorial/web e2e        # Playwright 스모크 (playwright install chromium 필요)
+                                        # webServer: pnpm build → wrangler pages dev (M1d §6 —
+                                        # astro preview는 public/_redirects를 처리하지 않아
+                                        # 경로형 딥링크 /replays/*가 404가 된다)
 
 # 유닛/조립 테스트는 루트에서
 pnpm test        # 전 패키지 (apps/web 유닛 포함)
@@ -85,6 +108,10 @@ PUBLIC_WORKER_URL="http://127.0.0.1:8787" pnpm --filter @tetorial/web dev
 `e2e/w4-smoke.spec.ts`는 실기기 스모크에서 발견된 배선 결함 7건(rAF tick·홀드/넥스트·분기 프레임
 복귀·업로드 버튼·대용량 드롭·고DPI 그리기 좌표·포커스 잔류)의 실브라우저 회귀 테스트다 — mock 계층
 유닛을 통과하고도 실기기에서 깨졌던 결함들이라 canvas 좌표·rAF·버튼 존재는 실 페이지에서 검증한다.
+
+M1d(경로형 딥링크 동결·한도 차단·키 기본값 — M1d-1 ~ M1d-7)는 브랜치 한정 명세
+(`docs/specs/apps-web-m1d.md`, main에 머지되지 않음)의 수용 기준이며, 위 표와 별개로
+`deeplink.test.ts`·`note-limit.test.ts`·`settings.test.ts`·`e2e/m1d.spec.ts`에서 검증한다.
 
 | ID | 검증 | 위치 |
 | --- | --- | --- |

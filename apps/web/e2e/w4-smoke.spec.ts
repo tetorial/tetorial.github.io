@@ -127,8 +127,8 @@ test.describe("W4-b 배선 결함 재현", () => {
     // 용량 표시가 존재한다(라운드 발췌 UI — §3-B).
     await expect(page.getByTestId("upload-size")).toBeVisible();
     await page.getByTestId("upload-submit").click();
-    // 성공 → ?gist= URL 전환 + 공유 링크 복사 버튼.
-    await expect(page).toHaveURL(/[?&]gist=g1/, { timeout: 15_000 });
+    // 성공 → 경로형 URL 전환(M1d-1) + 공유 링크 복사 버튼.
+    await expect(page).toHaveURL(/\/replays\/g1$/, { timeout: 15_000 });
     await expect(page.getByTestId("copy-share")).toBeVisible();
   });
 

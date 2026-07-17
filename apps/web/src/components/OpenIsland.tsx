@@ -1,10 +1,12 @@
 // 홈 진입 아일랜드 (apps-web §2 OpenIsland) — 파일 드롭/선택 + gist URL 입력.
 import { useState, useCallback, useRef } from "preact/hooks";
 import { withBase } from "../lib/base-url.ts";
+import { buildDeepLink } from "../lib/deeplink.ts";
 import { stashPendingReplay, extractGistId } from "../lib/handoff.ts";
 
-function goToReplay(query = ""): void {
-  window.location.href = withBase("/replay") + query;
+// 로컬 파일 핸드오프는 식별자가 없으므로 /replay/(자산 정규형 — _redirects 주석)로 직행한다.
+function goToReplay(): void {
+  window.location.href = withBase("/replay/");
 }
 
 export default function OpenIsland() {
@@ -36,7 +38,7 @@ export default function OpenIsland() {
       setError("공유 링크 또는 gist ID 형식이 올바르지 않습니다.");
       return;
     }
-    goToReplay(`?gist=${encodeURIComponent(id)}`);
+    window.location.href = buildDeepLink({ gistId: id }); // 경로형 정규형 발신(M1d-1)
   }, [gistInput]);
 
   return (

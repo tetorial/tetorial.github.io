@@ -38,7 +38,8 @@ test("AW-4 gist 열기: mock index·rawUrl 무결성 통과 → 재생", async (
     route.fulfill({ body: payload.replayBody }),
   );
 
-  await page.goto("/replay?gist=g1");
+  // 경로형 딥링크(M1d-1) — 비표준 id "g1"은 원문 통과(fallback)로 해석된다.
+  await page.goto("/replays/g1");
   await expect(page.getByTestId("replay-loaded")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("board-canvas")).toBeVisible();
 });
@@ -51,7 +52,7 @@ test("AW-4 gist 404 → 오류 문구 + 홈 링크", async ({ page }) => {
       headers: { "content-type": "application/json" },
     }),
   );
-  await page.goto("/replay?gist=missing");
+  await page.goto("/replays/missing");
   await expect(page.getByTestId("replay-error")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("리플레이를 찾을 수 없습니다")).toBeVisible();
 });

@@ -7,6 +7,7 @@ import {
   loadSettings,
   resetSettings,
   DEFAULT_META_BINDINGS,
+  WEB_DEFAULT_GAME_KEYS,
 } from "./settings.js";
 
 // AW-8 설정: 핸들링·키 변경 즉시 반영 + 영속, 리셋.
@@ -45,6 +46,39 @@ describe("AW-8 키 바인딩 해석", () => {
     const keys = resolveKeys({ moveLeft: ["KeyA", "KeyH"] });
     expect(keys.moveLeft).toEqual(["KeyA", "KeyH"]);
     expect(keys.moveRight).toEqual(DEFAULT_KEYS.moveRight);
+  });
+});
+
+describe("M1d-7 키 기본값 웹 오버라이드 (apps-web-m1d §5)", () => {
+  it("M1d-7 홀드 ShiftLeft·시계 회전 ArrowUp이 기본 적용된다", () => {
+    const keys = resolveKeys(null);
+    expect(keys.hold).toEqual(["ShiftLeft"]);
+    expect(keys.rotateCW).toEqual(["ArrowUp"]);
+    expect(WEB_DEFAULT_GAME_KEYS).toEqual({ hold: ["ShiftLeft"], rotateCW: ["ArrowUp"] });
+  });
+
+  it("M1d-7 나머지 게임 키는 input DEFAULT_KEYS 상속 (라이브러리 기본값 무수정)", () => {
+    const keys = resolveKeys(null);
+    expect(keys.moveLeft).toEqual(DEFAULT_KEYS.moveLeft);
+    expect(keys.hardDrop).toEqual(DEFAULT_KEYS.hardDrop);
+    expect(keys.rotateCCW).toEqual(DEFAULT_KEYS.rotateCCW);
+    // input의 기본값 자체는 그대로다 — 오버라이드는 웹 병합 지점에서만.
+    expect(DEFAULT_KEYS.hold).toEqual(["KeyC"]);
+    expect(DEFAULT_KEYS.rotateCW).toEqual(["KeyX"]);
+  });
+
+  it("M1d-7 기존 사용자 저장 설정이 있으면 그것이 우선(마이그레이션 없음)", () => {
+    const keys = resolveKeys({ hold: ["KeyC"], rotateCW: ["KeyX"] });
+    expect(keys.hold).toEqual(["KeyC"]);
+    expect(keys.rotateCW).toEqual(["KeyX"]);
+  });
+
+  it("M1d-7 리셋 후에도 웹 오버라이드가 기본이다", () => {
+    const storage = new Storage(new MemoryStorage());
+    storage.setKeys({ hold: ["KeyC"] });
+    const reset = resetSettings(storage);
+    expect(reset.keys.hold).toEqual(["ShiftLeft"]);
+    expect(reset.keys.rotateCW).toEqual(["ArrowUp"]);
   });
 });
 

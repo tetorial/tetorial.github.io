@@ -81,6 +81,9 @@ importers:
       '@types/pako':
         specifier: ^2.0.4
         version: 2.0.4
+      wrangler:
+        specifier: 4.28.0
+        version: 4.28.0(@cloudflare/workers-types@4.20260702.1)
 
   packages/adapter-tetrio:
     dependencies:

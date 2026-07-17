@@ -4,6 +4,8 @@
 // sessionStorage는 오리진당 ~5MB(UTF-16이라 char당 2B) 한도라 대용량(~6MB) 리플레이 텍스트에서
 // setItem이 QuotaExceededError로 무음 실패했다(W4 결함5 — 드롭이 조용히 안 열림). IndexedDB는
 // 한도가 훨씬 크고 문자열/Blob을 효율 저장하므로 대용량을 안전히 넘긴다.
+import { decodeReplayId } from "./deeplink.js";
+
 const DB_NAME = "tetorial:handoff";
 const STORE = "pending";
 const PENDING_KEY = "replay";
@@ -64,17 +66,18 @@ export async function takePendingReplay(): Promise<PendingReplay | null> {
   }
 }
 
-/** 공유 링크 또는 gist id 문자열에서 gistId를 추출한다. */
+/** 공유 링크 또는 gist id 문자열에서 gistId를 추출한다.
+    구형 ?gist= 해석은 제거됨(M1d-4) — 정규형은 경로형 /replays/<replayId>(§2). */
 export function extractGistId(input: string): string | null {
   const trimmed = input.trim();
   if (trimmed === "") return null;
-  // 전체 URL이면 쿼리에서 gist 추출
-  const gistMatch = trimmed.match(/[?&]gist=([^&\s]+)/);
-  if (gistMatch) return decodeURIComponent(gistMatch[1] ?? "");
+  // 경로형 공유 링크: …/replays/<seg> — 세그먼트를 판별 규칙(길이 22 + 문자집합)으로 복원
+  const pathMatch = trimmed.match(/\/replays\/([A-Za-z0-9_-]+)/);
+  if (pathMatch) return decodeReplayId(pathMatch[1] ?? "");
   // gist API/웹 URL의 마지막 경로 세그먼트
   const urlMatch = trimmed.match(/gist(?:\.github)?\.com\/(?:[^/]+\/)?([A-Za-z0-9]+)/);
   if (urlMatch) return urlMatch[1] ?? null;
-  // 순수 id로 간주 (영숫자만)
-  if (/^[A-Za-z0-9]+$/.test(trimmed)) return trimmed;
+  // 순수 id로 간주 — 인코딩 세그먼트(22자)면 복원, 아니면 원문 통과(fallback이 규범)
+  if (/^[A-Za-z0-9_-]+$/.test(trimmed)) return decodeReplayId(trimmed);
   return null;
 }

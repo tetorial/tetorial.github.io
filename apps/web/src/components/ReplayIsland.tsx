@@ -6,7 +6,8 @@ import BoardCanvas from "./BoardCanvas.tsx";
 import SettingsPanel from "./SettingsPanel.tsx";
 import SimulatorPanel from "./SimulatorPanel.tsx";
 import { withBase } from "../lib/base-url.ts";
-import { parseDeepLink, buildDeepLinkQuery } from "../lib/deeplink.ts";
+import { parseDeepLink, buildDeepLink, pageIndexFromOrdinal } from "../lib/deeplink.ts";
+import { noteLimitReason } from "../lib/note-limit.ts";
 import { takePendingReplay } from "../lib/handoff.ts";
 import { openLocalReplay, openGistReplay, type LoadedReplay } from "../lib/open-replay.ts";
 import {
@@ -52,7 +53,12 @@ export default function ReplayIsland() {
   const [theme, setThemeState] = useState<ThemePref>(() => storage.getTheme());
   const [showSettings, setShowSettings] = useState(false);
   const [branchData, setBranchData] = useState<{ result: CaptureResult; frame: number } | null>(null);
-  const [viewerNote, setViewerNote] = useState<{ clientId: string; note: Note } | null>(null);
+  const [viewerNote, setViewerNote] = useState<{
+    clientId: string;
+    note: Note;
+    /** 딥링크 fragment의 1-기준 페이지 서수(best-effort — M1d-3). 문맥 없으면 null. */
+    page: number | null;
+  } | null>(null);
   const [candidates, setCandidates] = useState<{ clientId: string; note: Note }[] | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [shareGistId, setShareGistId] = useState<string | null>(null);
@@ -60,7 +66,9 @@ export default function ReplayIsland() {
   // ── 초기 로드 (딥링크 / 핸드오프) ──────────────────────────────
   useEffect(() => {
     applyTheme(theme);
-    const link = parseDeepLink(window.location.search);
+    // 경로형 딥링크(M1d-1): /replays/<replayId>는 _redirects 200 리라이트로 이 페이지가
+    // 서빙되며 브라우저 URL은 원형 유지 — location 전체(pathname·search·hash)를 파싱한다.
+    const link = parseDeepLink(window.location);
     if (link.gistId) {
       void loadGist(link.gistId, link);
     } else {
@@ -98,7 +106,7 @@ export default function ReplayIsland() {
       return;
     }
     startLoaded(res.loaded);
-    if (link?.noteId) openDeepLinkNote(res.loaded, link.noteId, link.clientId, link.pageId);
+    if (link?.noteId) openDeepLinkNote(res.loaded, link.noteId, link.clientId, link.page);
   };
 
   const startLoaded = (loaded: LoadedReplay): void => {
@@ -139,13 +147,13 @@ export default function ReplayIsland() {
     buildSession(loaded, r, p);
   };
 
-  // 업로드 성공(POST /g) → 소스를 gist로 승격, ?gist= URL 전환, 공유 배너 표시(§3-B).
+  // 업로드 성공(POST /g) → 소스를 gist로 승격, 경로형 URL 전환(M1d-1), 공유 배너 표시(§3-B).
   const onUploaded = (gistId: string): void => {
     const loaded = loadedRef.current;
     if (loaded) loaded.source = { gistId };
     setShowUpload(false);
     setShareGistId(gistId);
-    history.replaceState({}, "", `${withBase("/replay")}?gist=${encodeURIComponent(gistId)}`);
+    history.replaceState({}, "", buildDeepLink({ gistId }));
   };
 
   // ── 딥링크·마커 → 뷰어 ────────────────────────────────────────
@@ -153,14 +161,11 @@ export default function ReplayIsland() {
     loaded: LoadedReplay,
     noteId: string,
     clientId: string | null,
-    pageId: string | null,
+    page: number | null,
   ): void => {
     const found = resolveNoteCandidates(loaded.notesFiles, noteId, clientId);
     if (found.length === 1) {
-      setViewerNote(found[0]!);
-      if (pageId) {
-        /* 뷰어가 pageId로 선택 — SimulatorPanel/Viewer가 처리 */
-      }
+      setViewerNote({ ...found[0]!, page });
     } else if (found.length > 1) {
       setCandidates(found); // 충돌 → 후보 목록
     }
@@ -235,7 +240,7 @@ export default function ReplayIsland() {
           clusters={clusters}
           onMarkerClick={(m) => {
             const cand = resolveNoteCandidates(loaded.notesFiles, m.noteId, m.clientId);
-            if (cand[0]) setViewerNote(cand[0]);
+            if (cand[0]) setViewerNote({ ...cand[0], page: null });
           }}
         />
 
@@ -249,6 +254,7 @@ export default function ReplayIsland() {
             setBranchData({ result, frame: session.frame });
           }}
           hasGist={typeof loaded.source !== "string"}
+          limitReason={noteLimitReason(loaded.notesFiles)}
         />
       </div>
 
@@ -277,7 +283,7 @@ export default function ReplayIsland() {
           entries={sidebar}
           onOpen={(e) => {
             const cand = resolveNoteCandidates(loaded.notesFiles, e.noteId, e.clientId);
-            if (cand[0]) setViewerNote(cand[0]);
+            if (cand[0]) setViewerNote({ ...cand[0], page: null });
           }}
         />
 
@@ -287,7 +293,7 @@ export default function ReplayIsland() {
             <ul>
               {candidates.map((c) => (
                 <li>
-                  <button class="btn" onClick={() => { setViewerNote(c); setCandidates(null); }}>
+                  <button class="btn" onClick={() => { setViewerNote({ ...c, page: null }); setCandidates(null); }}>
                     {c.clientId} · {c.note.pages.length}p
                   </button>
                 </li>
@@ -330,6 +336,7 @@ export default function ReplayIsland() {
           note={viewerNote.note}
           clientId={viewerNote.clientId}
           gistId={typeof loaded.source === "string" ? null : loaded.source.gistId}
+          initialPage={viewerNote.page}
           onClose={() => setViewerNote(null)}
         />
       )}
@@ -532,13 +539,34 @@ function PlaybackStats({ session }: { session: PlaybackSession }) {
   );
 }
 
-function BranchBar({ onBranch, hasGist }: { onBranch: () => void; hasGist: boolean }) {
+function BranchBar({
+  onBranch,
+  hasGist,
+  limitReason,
+}: {
+  onBranch: () => void;
+  hasGist: boolean;
+  /** 노트 합산 한도 도달 시 차단 사유(M1d-6). null이면 정상 진입. */
+  limitReason: string | null;
+}) {
+  // 차단 지점은 신규 노트 생성 진입(분기 → 시뮬레이터 진입 버튼)이다 — apps-web-m1d §4.
+  // 재편집(existing)은 노트 수가 늘지 않으므로 차단 대상이 아니다(#37의 재편집 UI에도 유지).
   return (
     <div class="branch-bar">
-      <button class="btn primary" onClick={onBranch} data-testid="branch-button">
+      <button
+        class="btn primary"
+        onClick={onBranch}
+        disabled={limitReason !== null}
+        data-testid="branch-button"
+      >
         이 지점에서 시뮬레이션 (분기)
       </button>
-      {!hasGist && (
+      {limitReason !== null && (
+        <span class="hint limit" role="status" data-testid="note-limit-reason">
+          {limitReason}
+        </span>
+      )}
+      {limitReason === null && !hasGist && (
         <span class="hint">노트를 공유하려면 먼저 리플레이를 업로드해야 합니다.</span>
       )}
     </div>
@@ -575,17 +603,28 @@ function ViewerModal({
   note,
   clientId,
   gistId,
+  initialPage,
   onClose,
 }: {
   note: Note;
   clientId: string;
   gistId: string | null;
+  /** 딥링크 fragment #p<n>의 1-기준 서수. best-effort — 부재·범위 밖이면 첫 페이지(M1d-3). */
+  initialPage?: number | null;
   onClose: () => void;
 }) {
+  const [pageIndex, setPageIndex] = useState(() =>
+    pageIndexFromOrdinal(initialPage ?? null, note.pages.length),
+  );
   const copyLink = (): void => {
     if (!gistId) return;
-    const query = buildDeepLinkQuery({ gistId, clientId, noteId: note.id, pageId: note.pages[0]?.id });
-    void navigator.clipboard?.writeText(`${window.location.origin}${withBase("/replay")}?${query}`);
+    // 발신 규범(M1d-2): note는 항상 <clientId>.<noteId> 한정형, 페이지는 서수 fragment(§2).
+    const link = buildDeepLink({
+      gistId,
+      note: { clientId, noteId: note.id },
+      page: pageIndex + 1,
+    });
+    void navigator.clipboard?.writeText(`${window.location.origin}${link}`);
   };
   return (
     <div class="viewer-modal" role="dialog" data-testid="viewer-modal">
@@ -596,8 +635,15 @@ function ViewerModal({
         </div>
         <p class="hint">페이지 {note.pages.length}개 · 작성자 {clientId}</p>
         <ol class="vm-pages">
-          {note.pages.map((p) => (
-            <li>{p.comment ?? "(주석 없음)"}</li>
+          {note.pages.map((p, i) => (
+            <li
+              class={i === pageIndex ? "current" : ""}
+              aria-current={i === pageIndex ? "true" : undefined}
+              data-testid="vm-page"
+              onClick={() => setPageIndex(i)}
+            >
+              {p.comment ?? "(주석 없음)"}
+            </li>
           ))}
         </ol>
         {gistId && (
@@ -613,6 +659,8 @@ function ViewerModal({
           padding: var(--space-5); max-width: 32rem; width: 90%; box-shadow: var(--shadow); }
         .vm-head { display: flex; justify-content: space-between; align-items: center; }
         .vm-pages { margin: var(--space-3) 0; }
+        .vm-pages li { cursor: pointer; }
+        .vm-pages li.current { font-weight: 600; color: var(--color-accent); }
       `}</style>
     </div>
   );
@@ -624,7 +672,8 @@ function formatKB(bytes: number): string {
 
 function ShareBanner({ gistId, onClose }: { gistId: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const shareUrl = `${window.location.origin}${withBase("/replay")}?gist=${encodeURIComponent(gistId)}`;
+  // 공유 링크는 경로형 정규형만 발신한다(M1d-1 — §2).
+  const shareUrl = `${window.location.origin}${buildDeepLink({ gistId })}`;
   return (
     <div class="share-banner" data-testid="share-banner">
       <span>업로드 완료 — 공유 링크가 생성되었습니다.</span>
@@ -809,6 +858,7 @@ const STYLES = `
     background: var(--color-surface-2); font-size: var(--text-sm); margin: 0; }
   .support-badge.blocked { color: var(--color-danger); }
   .branch-bar { display: flex; gap: var(--space-3); align-items: center; }
+  .branch-bar .hint.limit { color: var(--color-warn); }
   .btn { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border);
     border-radius: var(--radius-sm); background: var(--color-surface-2); color: var(--color-text); }
   .btn.primary { background: var(--color-accent); color: var(--color-accent-contrast); border-color: transparent; }
