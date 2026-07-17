@@ -97,4 +97,4 @@ else createAuthoringSession({ ...derived, noteId: freshNoteId });
 
 ## 수용 기준
 
-테스트 이름에 기준 ID를 명시한다 (`src/*.test.ts`): S-1 캡처 정합 · S-2 불러오기 규범(3경로) · S-3 언두 매트릭스 · S-4 드래프트 왕복 · S-5 파생 진입 · S-6 조립·병합 · S-7 A/B 통합 · S-8 오버레이 경로 · M1b-1/2 파생 origin 복사 · M1b-3 id 값 주입 · M1b-4 입구 방어 (M1b-5 웹 배선은 `apps/web`).
+테스트 이름에 기준 ID를 명시한다 (`src/*.test.ts`): S-1 캡처 정합 · S-2 불러오기 규범(3경로) · S-3 언두 매트릭스 · S-5 파생 진입 · S-6 조립·병합 · S-7 A/B 통합 · S-8 오버레이 경로 · S-9 드래프트 API 소멸 · M1b-1/2 파생 origin 복사 · M1b-3 id 값 주입 · M1b-4 입구 방어 (M1b-5 웹 배선은 `apps/web`).
