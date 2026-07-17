@@ -13,7 +13,7 @@ tetorial/
 │   └── web/                    # Astro 앱 (Cloudflare Pages 배포 대상 — D-19)
 │       └── src/
 │           ├── pages/          # 라우트
-│           ├── islands/        # Preact 아일랜드 (인터랙티브 UI)
+│           ├── components/     # Preact 아일랜드·하위 컴포넌트 (인터랙티브 UI)
 │           └── ...
 ├── workers/
 │   └── gist-proxy/             # Cloudflare Worker (검증 + Gist API 프록시)
