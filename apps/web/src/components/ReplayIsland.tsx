@@ -1,13 +1,19 @@
 // 리플레이 페이지 핵심 아일랜드 (apps-web §2) — 재생·시뮬레이터·노트 사이드바가 상태를 공유하므로
 // 하나의 아일랜드로 구성한다. 내부는 Preact 컴포넌트 트리로 분할.
-import { useEffect, useRef, useState, useCallback, useMemo } from "preact/hooks";
+// 하위 컴포넌트는 components/replay/ 하위 파일로 분해했다(M4-C AW-23, #46) — 여기는
+// 오케스트레이션(상태·핸들러·조립 JSX)만 남는다.
+import { useEffect, useRef, useState, useCallback } from "preact/hooks";
 import { supportReport } from "@tetorial/replay-tetrio";
 import BoardCanvas from "./BoardCanvas.tsx";
-import PiecePreview from "./PiecePreview.tsx";
 import NoteViewer from "./NoteViewer.tsx";
 import SettingsPanel from "./SettingsPanel.tsx";
 import SimulatorPanel, { type SimEntry } from "./SimulatorPanel.tsx";
-import { withBase } from "../lib/base-url.ts";
+import { EmptyState, ErrorState } from "./replay/EmptyState.tsx";
+import { RoundPlayerSelect, SupportBadge } from "./replay/RoundPlayerSelect.tsx";
+import { PlaybackControls } from "./replay/PlaybackControls.tsx";
+import { BranchBar } from "./replay/BranchBar.tsx";
+import { Sidebar, CollectedNotesBar } from "./replay/Sidebar.tsx";
+import { UploadPanel, ShareBanner } from "./replay/UploadPanel.tsx";
 import { parseDeepLink, buildDeepLink } from "../lib/deeplink.ts";
 import { noteLimitReason } from "../lib/note-limit.ts";
 import {
@@ -17,26 +23,18 @@ import {
   uploadCollectedNotes,
 } from "../lib/note-collection.ts";
 import { canEditNote } from "../lib/note-viewer.ts";
-import { holdPreview, nextPreviewSlice } from "../lib/piece-preview.ts";
 import { takePendingReplay } from "../lib/handoff.ts";
-import { resolveGistInput, GIST_INPUT_PLACEHOLDER } from "../lib/gist-input.ts";
-import { openLocalReplay, openGistReplay, type LoadedReplay } from "../lib/open-replay.ts";
 import {
-  allRoundIndices,
-  estimateUploadSize,
-  buildUploadPayload,
-  UPLOAD_WARN_BYTES,
-} from "../lib/upload.ts";
+  openLocalReplay,
+  openGistReplay,
+  originalRound,
+  type LoadedReplay,
+} from "../lib/open-replay.ts";
 import { WorkerError } from "../lib/worker-client.ts";
 import { createPlaybackSession, type PlaybackSession } from "../lib/playback-session.ts";
 import { playbackFrame } from "../lib/view-frame.ts";
-import { collectMarkers, clusterMarkers, markerRatio, type NoteFileRef } from "../lib/markers.ts";
-import {
-  applyUploadedFile,
-  flattenSidebar,
-  resolveNoteCandidates,
-  type SidebarEntry,
-} from "../lib/notes-loading.ts";
+import { collectMarkers, clusterMarkers, type NoteFileRef } from "../lib/markers.ts";
+import { applyUploadedFile, flattenSidebar, resolveNoteCandidates } from "../lib/notes-loading.ts";
 import { toDisplayError, type DisplayError } from "../lib/errors.ts";
 import { Storage } from "../lib/storage.ts";
 import { loadSettings, resetSettings } from "../lib/settings.ts";
@@ -47,8 +45,6 @@ import type { ThemePref } from "../lib/storage.ts";
 import type { Note } from "@tetorial/types";
 
 type Phase = "empty" | "loading" | "error" | "loaded";
-
-const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
 export default function ReplayIsland() {
   const storage = useRef(new Storage()).current;
@@ -290,7 +286,7 @@ export default function ReplayIsland() {
     authorName: f.authorName,
     notes: f.notes,
   }));
-  const originalRoundNum = loaded.roundMap[round] ?? round;
+  const originalRoundNum = originalRound(loaded, round);
   const markers = collectMarkers(noteFileRefs, { round: originalRoundNum, player });
   const clusters = clusterMarkers(markers);
   const myClientId = storage.peekClientId();
@@ -480,566 +476,28 @@ export default function ReplayIsland() {
   );
 }
 
-/* ── 하위 컴포넌트 ────────────────────────────────────────────── */
-
-function EmptyState({ onLocalText }: { onLocalText: (text: string) => void }) {
-  const [gist, setGist] = useState("");
-  const [gistError, setGistError] = useState<string | null>(null);
-  // 홈(OpenIsland)과 동일 의미론(AW-20) — 해석 후 경로형 정규형 URL로 이동해야
-  // 새로고침 시에도 유실되지 않는다(M1d-1 발신 규약).
-  const openGist = (): void => {
-    const res = resolveGistInput(gist);
-    if (!res.ok) {
-      setGistError(res.message);
-      return;
-    }
-    window.location.href = res.url;
-  };
-  return (
-    <div class="empty" data-testid="replay-empty">
-      <p>리플레이 파일을 열어 시작하세요.</p>
-      <input
-        type="file"
-        accept=".ttrm,.ttr,application/json"
-        data-testid="replay-file-input"
-        onChange={async (e) => {
-          const file = (e.target as HTMLInputElement).files?.[0];
-          if (file) onLocalText(await file.text());
-        }}
-      />
-      <div class="gist-row">
-        <input
-          type="text"
-          placeholder={GIST_INPUT_PLACEHOLDER}
-          value={gist}
-          data-testid="empty-gist-input"
-          onInput={(e) => setGist((e.target as HTMLInputElement).value)}
-        />
-        <button class="btn" onClick={openGist} data-testid="empty-gist-open">
-          공유 링크 열기
-        </button>
-      </div>
-      {gistError && (
-        <p class="error-detail" role="alert" data-testid="empty-gist-error">
-          {gistError}
-        </p>
-      )}
-      <p><a href={withBase("/")}>← 홈으로</a></p>
-    </div>
-  );
-}
-
-function ErrorState({ error, onRetry }: { error: DisplayError; onRetry: () => void }) {
-  return (
-    <div class="error-state" role="alert" data-testid="replay-error">
-      <p class="error-title">{error.title}</p>
-      {error.detailText && <p class="error-detail">{error.detailText}</p>}
-      {error.action.kind === "home" && <a href={withBase("/")}>홈으로 돌아가기</a>}
-      {error.action.kind === "retry" && (
-        <button class="btn" onClick={onRetry}>다시 시도</button>
-      )}
-    </div>
-  );
-}
-
-function RoundPlayerSelect({
-  doc,
-  roundMap,
-  round,
-  player,
-  onChange,
-}: {
-  doc: LoadedReplay["doc"];
-  roundMap: number[];
-  round: number;
-  player: number;
-  onChange: (r: number, p: number) => void;
-}) {
-  const players = doc.rounds[round] ?? [];
-  return (
-    <div class="rp-select">
-      {doc.rounds.length > 1 && (
-        <label>
-          라운드
-          <select
-            value={round}
-            data-testid="round-select"
-            onChange={(e) => onChange(Number((e.target as HTMLSelectElement).value), 0)}
-          >
-            {doc.rounds.map((_, i) => (
-              <option value={i}>R{(roundMap[i] ?? i) + 1}</option>
-            ))}
-          </select>
-        </label>
-      )}
-      {players.length > 1 && (
-        <label>
-          플레이어
-          <select
-            value={player}
-            data-testid="player-select"
-            onChange={(e) => onChange(round, Number((e.target as HTMLSelectElement).value))}
-          >
-            {players.map((pl, i) => (
-              <option value={i}>{pl.username || `P${i + 1}`}</option>
-            ))}
-          </select>
-        </label>
-      )}
-    </div>
-  );
-}
-
-function SupportBadge({ support }: { support: ReturnType<typeof supportReport> }) {
-  const blocked =
-    support.branch.kickset === "unsupported" || support.branch.board === "unsupported";
-  const substitute = support.branch.spin === "will-substitute";
-  if (!blocked && !substitute) return null;
-  return (
-    <p class={`support-badge ${blocked ? "blocked" : "warn"}`} data-testid="support-badge">
-      {blocked
-        ? "이 방 설정은 분기(시뮬레이션)가 지원되지 않습니다 (킥셋/보드)."
-        : "분기 시 스핀 판정이 원본 방 설정과 다를 수 있습니다."}
-    </p>
-  );
-}
-
-function PlaybackControls({
-  session,
-  clusters,
-  onMarkerClick,
-}: {
-  session: PlaybackSession;
-  clusters: ReturnType<typeof clusterMarkers>;
-  onMarkerClick: (m: { clientId: string; noteId: string }) => void;
-}) {
-  return (
-    <div class="pb-controls">
-      <div class="pb-buttons">
-        <button
-          class="btn"
-          data-testid="play-pause"
-          onClick={() => (session.playing ? session.pause() : session.play())}
-        >
-          {session.playing ? "⏸ 일시정지" : "▶ 재생"}
-        </button>
-        <button class="btn" data-testid="step-back" onClick={() => session.seek(session.frame - 1)}>
-          ◀ 프레임
-        </button>
-        <button class="btn" data-testid="step-fwd" onClick={() => session.step(1)}>
-          프레임 ▶
-        </button>
-        <select
-          data-testid="speed-select"
-          value={session.speed}
-          onChange={(e) => session.setSpeed(Number((e.target as HTMLSelectElement).value))}
-        >
-          {SPEEDS.map((s) => (
-            <option value={s}>{s}×</option>
-          ))}
-        </select>
-        <span class="frame-label" data-testid="frame-label">
-          {session.frame} / {session.totalFrames}
-        </span>
-      </div>
-
-      <div class="scrubber-wrap">
-        <input
-          type="range"
-          class="scrubber"
-          min={0}
-          max={session.totalFrames}
-          value={session.frame}
-          data-testid="scrubber"
-          onInput={(e) => session.seek(Number((e.target as HTMLInputElement).value))}
-        />
-        {clusters.map((c) => (
-          <button
-            class="marker"
-            data-testid="note-marker"
-            style={{ left: `${markerRatio(c.frame, session.totalFrames) * 100}%` }}
-            title={c.markers.map((m) => m.firstComment ?? m.noteId).join("\n")}
-            onClick={() => onMarkerClick(c.markers[0]!)}
-          >
-            {c.markers.length > 1 ? c.markers.length : "●"}
-          </button>
-        ))}
-      </div>
-
-      <PlaybackStats session={session} />
-    </div>
-  );
-}
-
-/** 재생 화면 홀드·넥스트 (m3b AW-18 — renderer 프리뷰 배선. 표시 계산은 lib/piece-preview). */
-function PlaybackStats({ session }: { session: PlaybackSession }) {
-  const v = session.view;
-  const hold = holdPreview(v.hold);
-  const next = nextPreviewSlice(v.next);
-  return (
-    <div class="pb-stats" data-testid="pb-stats">
-      <span class="piece-slot" data-testid="pb-next" data-next={next.join("")}>
-        다음
-        {next.length > 0 ? (
-          next.map((p, i) => <PiecePreview piece={p} size={16} label={`다음 ${i + 1}번째 ${p}`} />)
-        ) : (
-          <span class="piece-empty">—</span>
-        )}
-      </span>
-      <span
-        class="piece-slot"
-        data-testid="pb-hold"
-        data-piece={hold?.piece ?? ""}
-        data-locked={hold?.locked ? "true" : "false"}
-      >
-        홀드
-        {hold ? (
-          <PiecePreview piece={hold.piece} size={16} dimmed={hold.locked} label={`홀드 ${hold.piece}`} />
-        ) : (
-          <span class="piece-empty">—</span>
-        )}
-      </span>
-      <span>B2B: {v.stats.b2b}</span>
-      <span>combo: {v.stats.combo}</span>
-      {v.pendingGarbage > 0 && <span class="warn">대기 쓰레기: {v.pendingGarbage}</span>}
-    </div>
-  );
-}
-
-function BranchBar({
-  onBranch,
-  hasGist,
-  limitReason,
-  blockedReason,
-}: {
-  onBranch: () => void;
-  hasGist: boolean;
-  /** 노트 합산 한도 도달 시 차단 사유(M1d-6). null이면 정상 진입. */
-  limitReason: string | null;
-  /** captureBranch 실패 사유 인라인 안내(AW-22). null이면 표시 없음. */
-  blockedReason: string | null;
-}) {
-  // 차단 지점은 신규 노트 생성 진입(분기 → 시뮬레이터 진입 버튼)이다 — apps-web-m1d §4.
-  // 재편집(existing)은 노트 수가 늘지 않으므로 차단 대상이 아니다(#37의 재편집 UI에도 유지).
-  return (
-    <div class="branch-bar">
-      <button
-        class="btn primary"
-        onClick={onBranch}
-        disabled={limitReason !== null}
-        data-testid="branch-button"
-      >
-        이 지점에서 시뮬레이션 (분기)
-      </button>
-      {limitReason !== null && (
-        <span class="hint limit" role="status" data-testid="note-limit-reason">
-          {limitReason}
-        </span>
-      )}
-      {limitReason === null && !hasGist && (
-        <span class="hint">노트를 공유하려면 먼저 리플레이를 업로드해야 합니다.</span>
-      )}
-      {blockedReason !== null && (
-        <span class="hint limit" role="status" data-testid="branch-blocked">
-          {blockedReason}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function Sidebar({
-  entries,
-  onOpen,
-}: {
-  entries: SidebarEntry[];
-  onOpen: (e: SidebarEntry) => void;
-}) {
-  return (
-    <div class="sidebar" data-testid="notes-sidebar">
-      <h2>노트 ({entries.length})</h2>
-      {entries.length === 0 && <p class="hint">아직 노트가 없습니다.</p>}
-      <ul>
-        {entries.map((e) => (
-          <li class="note-item" onClick={() => onOpen(e)} data-testid="note-item">
-            <div class="ni-head">
-              <span class="ni-author">{e.authorName ?? "익명"}</span>
-              {e.isMine && <span class="badge">내 것</span>}
-            </div>
-            <div class="ni-meta">{e.pageCount}p · {e.firstComment ?? "(주석 없음)"}</div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/**
- * 노트 수집함 (m3b §2 — AW-15·16·17). 시뮬레이터 **밖**의 업로드 지점이다.
- * 수집 노트 전부를 파일 하나로 조립해 단일 PUT으로 올린다 — 노트 단위 업로드는 없다.
- */
-function CollectedNotesBar({
-  collected,
-  hasGist,
-  busy,
-  onRemove,
-  onUpload,
-}: {
-  collected: Note[];
-  hasGist: boolean;
-  busy: boolean;
-  onRemove: (noteId: string) => void;
-  onUpload: () => void;
-}) {
-  return (
-    <div class="collected" data-testid="collected-notes">
-      <div class="cn-head">
-        <strong>수집한 노트 {collected.length}개</strong>
-        <button
-          class="btn primary"
-          data-testid="upload-collected"
-          onClick={onUpload}
-          disabled={busy || !hasGist}
-        >
-          {busy ? "업로드 중…" : "모두 업로드"}
-        </button>
-      </div>
-      <ul class="cn-list">
-        {collected.map((n, i) => (
-          <li data-testid="collected-item">
-            {i + 1}. {n.pages[0]?.comment ?? "(주석 없음)"} · {n.pages.length}p
-            <button class="link" data-testid="collected-remove" onClick={() => onRemove(n.id)}>
-              빼기
-            </button>
-          </li>
-        ))}
-      </ul>
-      {!hasGist && <p class="hint">노트를 공유하려면 먼저 리플레이를 업로드해야 합니다.</p>}
-      <p class="hint">아직 올리지 않았습니다 — 페이지를 떠나면 수집한 노트는 사라집니다.</p>
-    </div>
-  );
-}
-
-function formatKB(bytes: number): string {
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
-
-function ShareBanner({ gistId, onClose }: { gistId: string; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  // 공유 링크는 경로형 정규형만 발신한다(M1d-1 — §2).
-  const shareUrl = `${window.location.origin}${buildDeepLink({ gistId })}`;
-  return (
-    <div class="share-banner" data-testid="share-banner">
-      <span>업로드 완료 — 공유 링크가 생성되었습니다.</span>
-      <button
-        class="btn"
-        data-testid="copy-share"
-        onClick={() => {
-          void navigator.clipboard?.writeText(shareUrl);
-          setCopied(true);
-        }}
-      >
-        {copied ? "복사됨" : "공유 링크 복사"}
-      </button>
-      <button class="btn" onClick={onClose} aria-label="닫기">✕</button>
-    </div>
-  );
-}
-
-/** 업로드 플로우 (§3-B) — 라운드 발췌 다중 선택·용량 표시 → MetaFile 조립 → POST /g. */
-function UploadPanel({
-  doc,
-  roundMap,
-  onCancel,
-  onUploaded,
-}: {
-  doc: LoadedReplay["doc"];
-  roundMap: number[];
-  onCancel: () => void;
-  onUploaded: (gistId: string) => void;
-}) {
-  const [selected, setSelected] = useState<number[]>(() => allRoundIndices(doc));
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [nickname, setNickname] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const multi = doc.rounds.length > 1;
-
-  // 용량은 실제 gzip+base64로 산출(§3-B). 선택이 비면 계산용으로 첫 라운드를 임시 사용.
-  const est = useMemo(
-    () => estimateUploadSize(doc, selected.length ? selected : [0]),
-    [doc, selected],
-  );
-
-  const toggle = (i: number): void => {
-    setSelected((s) => (s.includes(i) ? s.filter((x) => x !== i) : [...s, i].sort((a, b) => a - b)));
-  };
-
-  const submit = async (): Promise<void> => {
-    if (selected.length === 0) {
-      setError("최소 한 라운드를 선택하세요.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const payload = await buildUploadPayload({
-        doc,
-        selectedRounds: selected,
-        ...(title ? { title } : {}),
-        ...(description ? { description } : {}),
-        ...(nickname ? { nickname } : {}),
-      });
-      const worker = getWorkerClient();
-      const res = await worker.createReplay({ meta: payload.meta, replayBody: payload.replayBody });
-      onUploaded(res.gistId);
-    } catch (e) {
-      if (e instanceof WorkerError) {
-        setError(
-          toDisplayError({ source: "worker", status: e.status, body: e.body, retryAfterMs: e.retryAfterMs }).title,
-        );
-      } else {
-        setError("업로드에 실패했습니다. 저장 기능이 설정되지 않았을 수 있습니다.");
-      }
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div class="upload-modal" role="dialog" aria-label="리플레이 업로드" data-testid="upload-panel">
-      <div class="um-inner">
-        <div class="um-head">
-          <h2>리플레이 업로드</h2>
-          <button class="btn" onClick={onCancel} aria-label="닫기">✕</button>
-        </div>
-
-        {multi && (
-          <fieldset class="round-select" data-testid="upload-rounds">
-            <legend>라운드 선택 (기본 전체)</legend>
-            {doc.rounds.map((_, i) => (
-              <label>
-                <input type="checkbox" checked={selected.includes(i)} onChange={() => toggle(i)} />
-                R{(roundMap[i] ?? i) + 1}
-                <span class="rs-size">{formatKB(est.perRoundRawBytes[i] ?? 0)}</span>
-              </label>
-            ))}
-          </fieldset>
-        )}
-
-        <p class="upload-size" data-testid="upload-size">
-          업로드 크기 약 <strong>{formatKB(est.replayBodyBytes)}</strong>
-          {est.overWarn && (
-            <span class="warn"> — {formatKB(UPLOAD_WARN_BYTES)} 초과, 라운드를 줄이는 것을 권장합니다.</span>
-          )}
-        </p>
-
-        <label class="um-field">
-          제목
-          <input
-            type="text"
-            value={title}
-            data-testid="upload-title"
-            onInput={(e) => setTitle((e.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label class="um-field">
-          설명
-          <input type="text" value={description} onInput={(e) => setDescription((e.target as HTMLInputElement).value)} />
-        </label>
-        <label class="um-field">
-          닉네임
-          <input type="text" value={nickname} onInput={(e) => setNickname((e.target as HTMLInputElement).value)} />
-        </label>
-        <p class="hint">닉네임은 인증되지 않습니다.</p>
-
-        {error && <p class="error-detail" data-testid="upload-error">{error}</p>}
-
-        <div class="um-actions">
-          <button class="btn primary" data-testid="upload-submit" onClick={() => void submit()} disabled={busy}>
-            {busy ? "업로드 중…" : "업로드"}
-          </button>
-          <button class="btn" onClick={onCancel} disabled={busy}>취소</button>
-        </div>
-      </div>
-      <style>{`
-        .upload-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 55;
-          display: flex; align-items: center; justify-content: center; }
-        .um-inner { background: var(--color-surface); border-radius: var(--radius); padding: var(--space-5);
-          max-width: 32rem; width: 92%; max-height: 92vh; overflow: auto; box-shadow: var(--shadow);
-          display: grid; gap: var(--space-3); }
-        .um-head { display: flex; justify-content: space-between; align-items: center; }
-        .um-head h2 { margin: 0; }
-        .round-select { border: 1px solid var(--color-border); border-radius: var(--radius-sm);
-          display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-3); }
-        .round-select label { display: flex; gap: var(--space-2); align-items: center; }
-        .rs-size { color: var(--color-text-muted); font-size: var(--text-sm); margin-left: auto; }
-        .um-field { display: grid; gap: var(--space-1); }
-        .um-field input { padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); }
-        .um-actions { display: flex; gap: var(--space-2); }
-      `}</style>
-    </div>
-  );
-}
-
+/* 아일랜드 자신의 레이아웃 + 캐스케이드 보존 잔류분(M4-C AW-24).
+   - .piece-slot·.piece-empty: SimulatorPanel의 동명 규칙과 겹친다 — 이 시트가 DOM 마지막이어서
+     이기는 현행 캐스케이드를 보존하기 위해 잔류(동작 불변).
+   - .empty·.error-state·.status·.error-title: empty/error/loading 분기는 이 시트 밖에서 렌더되어
+     현행에서도 적용되지 않는다(.status는 시뮬레이터 상태 문구에만 실효) — 동작 불변으로 잔류. */
 const STYLES = `
   .replay-layout { display: grid; grid-template-columns: 1fr var(--sidebar-width); gap: var(--space-5);
     max-width: 72rem; margin: 0 auto; padding: var(--space-5) var(--space-4); }
   .replay-main { display: grid; gap: var(--space-3); }
   .topbar { display: flex; justify-content: space-between; align-items: center; }
   .topbar-actions { display: flex; gap: var(--space-2); }
-  .share-banner { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;
-    padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
-    background: var(--color-surface-2); border: 1px solid var(--color-success); font-size: var(--text-sm); }
-  .rp-select { display: flex; gap: var(--space-3); }
-  .rp-select label { display: flex; gap: var(--space-1); align-items: center; }
-  select, .gist-row input { padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); }
   .board-canvas { border: 1px solid var(--color-border); border-radius: var(--radius-sm);
     background: var(--color-surface); display: block; }
-  .pb-controls { display: grid; gap: var(--space-2); }
-  .pb-buttons { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
-  .frame-label { font-family: var(--font-mono); color: var(--color-text-muted); }
-  .scrubber-wrap { position: relative; padding-top: var(--space-3); }
-  .scrubber { width: 100%; }
-  .marker { position: absolute; top: 0; transform: translateX(-50%); width: 1.4rem; height: 1.4rem;
-    border-radius: 50%; border: none; background: var(--color-accent); color: var(--color-accent-contrast);
-    font-size: 0.7rem; line-height: 1.4rem; padding: 0; }
-  .pb-stats { display: flex; gap: var(--space-4); align-items: center; font-size: var(--text-sm);
-    color: var(--color-text-muted); flex-wrap: wrap; }
-  .pb-stats .warn, .support-badge.warn { color: var(--color-warn); }
   .piece-slot { display: flex; gap: var(--space-1); align-items: center; }
   .piece-empty { font-family: var(--font-mono); }
-  .piece-preview { display: block; }
-  .piece-preview.dimmed { opacity: 0.4; }
-  .collected { border: 1px solid var(--color-accent); border-radius: var(--radius-sm);
-    padding: var(--space-3); display: grid; gap: var(--space-2); }
-  .cn-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
-  .cn-list { display: grid; gap: var(--space-1); font-size: var(--text-sm); margin: 0;
-    padding-left: var(--space-4); }
-  .cn-list .link { background: none; border: none; color: var(--color-accent); margin-left: var(--space-2); }
   .upload-status { font-size: var(--text-sm); margin: 0; }
   .upload-notice { color: var(--color-warn); font-size: var(--text-sm); margin: 0; }
   .support-badge { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
     background: var(--color-surface-2); font-size: var(--text-sm); margin: 0; }
   .support-badge.blocked { color: var(--color-danger); }
-  .branch-bar { display: flex; gap: var(--space-3); align-items: center; }
-  .branch-bar .hint.limit { color: var(--color-warn); }
-  .btn { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm); background: var(--color-surface-2); color: var(--color-text); }
-  .btn.primary { background: var(--color-accent); color: var(--color-accent-contrast); border-color: transparent; }
+  .support-badge.warn { color: var(--color-warn); }
   .replay-side { display: grid; gap: var(--space-4); align-content: start; }
-  .sidebar h2 { font-size: var(--text-lg); margin: 0 0 var(--space-2); }
-  .sidebar ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
-  .note-item { border: 1px solid var(--color-border); border-radius: var(--radius-sm);
-    padding: var(--space-2); cursor: pointer; background: var(--color-surface); }
-  .note-item:hover { border-color: var(--color-accent); }
-  .ni-head { display: flex; justify-content: space-between; }
-  .badge { font-size: var(--text-sm); background: var(--color-success); color: #fff;
-    border-radius: var(--radius-sm); padding: 0 var(--space-2); }
-  .ni-meta { font-size: var(--text-sm); color: var(--color-text-muted); }
-  .hint { color: var(--color-text-muted); font-size: var(--text-sm); }
   .empty, .error-state, .status { max-width: 40rem; margin: var(--space-8) auto; padding: 0 var(--space-4);
     display: grid; gap: var(--space-3); }
   .error-title { font-size: var(--text-lg); font-weight: 600; color: var(--color-danger); }

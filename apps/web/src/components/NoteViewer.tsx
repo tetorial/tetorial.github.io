@@ -133,14 +133,8 @@ export default function NoteViewer({ note, clientId, gistId, initialPage, onEdit
           font-size: var(--text-sm); color: var(--color-text-muted); }
         .vm-piece-slot { display: flex; gap: var(--space-2); align-items: center; }
         .vm-piece-empty { font-family: var(--font-mono); }
-        .piece-preview { display: block; }
-        .piece-preview.dimmed { opacity: 0.4; }
         .vm-comment { white-space: pre-wrap; margin: 0; }
         .vm-nav, .vm-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-        .btn { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm); background: var(--color-surface-2); color: var(--color-text); }
-        .btn.primary { background: var(--color-accent); color: var(--color-accent-contrast); border-color: transparent; }
-        .btn:disabled { opacity: 0.5; }
         @media (max-width: 48rem) { .vm-body { grid-template-columns: 1fr; } }
       `}</style>
     </div>

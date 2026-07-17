@@ -1,0 +1,54 @@
+/* 공용 컨트롤 조각 (M4-C AW-24, #48) — 5개 컴포넌트(ReplayIsland·SimulatorPanel·NoteViewer·
+   OpenIsland·SettingsPanel)의 인라인 STYLES에 복제되어 있던 조각의 전역 승격.
+   규범: .btn padding은 space-3 통일(m4c 명세 §3 — 다수파 3곳 기준).
+   컴포넌트 고유 레이아웃 스타일은 각 컴포넌트에 잔류한다 — 여기는 2곳 이상 중복 조각만. */
+
+.btn {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.btn.primary {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  border-color: transparent;
+}
+.btn:disabled {
+  opacity: 0.5;
+}
+
+/* 리스트 안 텍스트형 버튼 (구 .cn-list .link / .page-list .link — 선언 동일 복제의 통합) */
+.link {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  margin-left: var(--space-2);
+}
+
+/* 보조 안내 문구 공통핵 — margin 등 배치는 사용처 컴포넌트에 잔류 */
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* 공용 입력 행 (구 ReplayIsland `select, .gist-row input` + UploadPanel `.um-field input` —
+   선언 동일 복제의 통합. 크기·배치가 다른 입력은 각 컴포넌트에 잔류) */
+select,
+.gist-row input,
+.um-field input {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* renderer 미노 프리뷰 캔버스 (ReplayIsland·SimulatorPanel·NoteViewer 3곳 복제) */
+.piece-preview {
+  display: block;
+}
+.piece-preview.dimmed {
+  opacity: 0.4;
+}

@@ -233,21 +233,14 @@ export default function SimulatorPanel(props: Props) {
           font-size: var(--text-sm); color: var(--color-text-muted); }
         .piece-slot { display: flex; gap: var(--space-2); align-items: center; }
         .piece-empty { font-family: var(--font-mono); color: var(--color-text-muted); }
-        .piece-preview { display: block; }
-        .piece-preview.dimmed { opacity: 0.4; }
         .tool-row { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
         .sim-side { display: grid; gap: var(--space-3); align-content: start; }
         .comment-label { display: grid; gap: var(--space-1); }
         textarea { width: 100%; padding: var(--space-2); border: 1px solid var(--color-border);
           border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); font: inherit; }
         .page-list { display: grid; gap: var(--space-1); font-size: var(--text-sm); padding-left: var(--space-4); }
-        .page-list .link { background: none; border: none; color: var(--color-accent); margin-left: var(--space-2); }
-        .hint { color: var(--color-text-muted); font-size: var(--text-sm); margin: 0; }
+        .hint { margin: 0; }
         .status { color: var(--color-warn); font-size: var(--text-sm); }
-        .btn { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm); background: var(--color-surface-2); color: var(--color-text); }
-        .btn.primary { background: var(--color-accent); color: var(--color-accent-contrast); border-color: transparent; }
-        .btn:disabled { opacity: 0.5; }
         @media (max-width: 48rem) { .sim-body { grid-template-columns: 1fr; } }
       `}</style>
     </div>

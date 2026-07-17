@@ -145,9 +145,7 @@ export default function SettingsPanel(props: Props) {
         .key-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); font-size: var(--text-sm); }
         .key-list li { display: flex; justify-content: space-between; }
         .key-list code { font-family: var(--font-mono); color: var(--color-text-muted); }
-        .hint { color: var(--color-text-muted); font-size: var(--text-sm); margin: 0; }
-        .btn { padding: var(--space-2) var(--space-4); border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm); background: var(--color-surface-2); color: var(--color-text); }
+        .hint { margin: 0; }
       `}</style>
     </div>
   );

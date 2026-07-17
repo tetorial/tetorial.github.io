@@ -116,9 +116,6 @@ export default function OpenIsland() {
         .gist-row input { flex: 1; padding: var(--space-2) var(--space-3);
           border: 1px solid var(--color-border); border-radius: var(--radius-sm);
           background: var(--color-bg); color: var(--color-text); }
-        .btn { padding: var(--space-2) var(--space-4); border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm); background: var(--color-surface-2); color: var(--color-text); }
-        .btn.primary { background: var(--color-accent); color: var(--color-accent-contrast); border-color: transparent; }
         .error { color: var(--color-danger); }
         .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
       `}</style>

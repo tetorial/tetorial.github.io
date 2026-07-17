@@ -96,9 +96,16 @@ export async function openGistReplay(gistId: string, worker: WorkerClient): Prom
   };
 }
 
-/** doc 내부 라운드 인덱스 → 원본 라운드 번호(표시·origin 기록용 — §3-C). */
-export function originalRound(loaded: LoadedReplay, docRoundIndex: number): number {
-  return loaded.roundMap[docRoundIndex] ?? docRoundIndex;
+/**
+ * doc 내부 라운드 인덱스 → 원본 라운드 번호(표시·origin 기록용 — §3-C).
+ * 표시 라운드 계산의 단일 경로다(AW-25 — #47): roundMap 부재·희소 인덱스는 인덱스 항등 fallback.
+ * roundMap 오버로드는 하위 컴포넌트가 LoadedReplay 전체를 받지 않게 하기 위한 것(m4c §4).
+ */
+export function originalRound(loaded: LoadedReplay, docRoundIndex: number): number;
+export function originalRound(roundMap: number[], docRoundIndex: number): number;
+export function originalRound(source: LoadedReplay | number[], docRoundIndex: number): number {
+  const roundMap = Array.isArray(source) ? source : source.roundMap;
+  return roundMap[docRoundIndex] ?? docRoundIndex;
 }
 
 /** 분기(시뮬레이터 진입) origin 조립 — round는 원본 번호로 기록(origin 스키마 규약). */
