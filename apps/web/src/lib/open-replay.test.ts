@@ -187,3 +187,35 @@ describe("AW-4 gist 열기·무결성", () => {
     expect(res.ok).toBe(false);
   });
 });
+
+// AW-25 originalRound 단일화(#47) — 표시 라운드 번호 계산은 이 헬퍼 한 경로만 쓴다.
+// 손계산(roundMap 직접 인덱싱 `?? i`)과의 동등 동작(부재·희소 인덱스 fallback)을 고정한다.
+describe("AW-25 originalRound 헬퍼", () => {
+  it("AW-25 roundMap 매핑: 발췌 업로드의 원본 라운드 번호를 되돌린다", () => {
+    expect(originalRound([2, 5, 7], 0)).toBe(2);
+    expect(originalRound([2, 5, 7], 2)).toBe(7);
+  });
+
+  it("AW-25 범위 밖 인덱스는 항등 fallback(?? i)", () => {
+    expect(originalRound([2, 5], 3)).toBe(3);
+    expect(originalRound([], 0)).toBe(0);
+  });
+
+  it("AW-25 희소 인덱스(빈 슬롯)도 항등 fallback", () => {
+    const sparse: number[] = [];
+    sparse[2] = 9;
+    expect(originalRound(sparse, 0)).toBe(0);
+    expect(originalRound(sparse, 1)).toBe(1);
+    expect(originalRound(sparse, 2)).toBe(9);
+  });
+
+  it("AW-25 LoadedReplay 오버로드는 roundMap 경로와 동등", () => {
+    const text = loadText(TTRM);
+    if (!text) return;
+    const res = openLocalReplay(text);
+    if (!res.ok) throw new Error("fixture 파싱 실패");
+    for (let i = 0; i < res.loaded.doc.rounds.length + 1; i++) {
+      expect(originalRound(res.loaded, i)).toBe(originalRound(res.loaded.roundMap, i));
+    }
+  });
+});
