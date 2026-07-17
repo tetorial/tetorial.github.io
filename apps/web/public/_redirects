@@ -1,3 +1,5 @@
 # Cloudflare Pages 리라이트 (D-19) — 경로형 딥링크 /replays/{id}를 /replay가 200으로 서빙.
 # 파서(deeplink.ts)의 경로 해석은 M1d에서 구현된다.
-/replays/* /replay 200
+# 타깃은 자산 정규형(/replay/ — 디렉터리 인덱스)이어야 내부 리라이트가 된다.
+# /replay(슬래시 없음)로 두면 308 외부 리다이렉트가 일어나 경로의 id가 유실된다 (2026-07-17 실측).
+/replays/* /replay/ 200
