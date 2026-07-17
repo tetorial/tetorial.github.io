@@ -13,6 +13,7 @@ Worker(gist-proxy)와 클라이언트가 공유한다. 런타임 의존성은 `z
 | `notesFileSchema`                                                                 | zod  | `NotesFile` 검증기 (한도 §6 + 산술 경계 refine 포함) |
 | `originSchema` `snapshotSchema` `pageSchema` `pageStateSchema`                    | zod  | 서브 스키마 단독 검증기 (adapter A-7·sim 소비용 — W0 게이트 승인) |
 | `NOTES_LIMITS`                                                                    | 상수 | notes 한도 수치 (M1a 개정 반영). `maxFileBytes`(직렬화 800KB)와 `maxNotesPerReplay`(리플레이 합산)는 Worker가 강제 |
+| `NOTE_ID_PATTERN`                                                                 | 상수 | note id 형식 `[A-Za-z0-9_-]{8}`의 유일 출처 (M1c 승격). page.id도 동일 형식 공유 |
 | `MetaFile`                                                                        | 타입 | meta 스키마 §2 자구 그대로                           |
 | `metaFileSchema`                                                                  | zod  | `MetaFile` 검증기 (§3 규약 + §5-1 한도·ttr 교차 검증 포함) |
 | `META_LIMITS`                                                                     | 상수 | meta §5 한도 수치 (title·description·replayBody)     |
@@ -61,6 +62,15 @@ if (total > NOTES_LIMITS.maxNotesPerReplay) {
 }
 ```
 
+### note id 형식 검사 (sim 입구 방어·M1d 딥링크)
+
+```ts
+import { NOTE_ID_PATTERN } from "@tetorial/types";
+
+// 주입받은 id의 형식 대조 — 형식의 유일 출처는 이 상수 (M1c)
+if (!NOTE_ID_PATTERN.test(noteId)) throw new Error("noteId 형식 위반");
+```
+
 ### 타입만 사용 (renderer 등 타입 결합 소비자)
 
 ```ts
@@ -82,6 +92,8 @@ function rowAt(board: BoardRows, y: number): string {
 - **v1 예약 요소 포함**: `"D"` 더미 셀, `overlays.highlights` (notes 결정 로그 5 — 전방 호환)
 - **규약**: counters는 tetr.io 원값(-1 = 없음, D-9) · 일시는 ISO 8601 UTC(Z)
   (단 `displayCache.playedAt`은 오프셋 표기 허용) · 해시는 소문자 hex 64자
+- **Origin은 리플레이 단일형(M1c)**: `{ type: "replay", round, player, frame }`만 유효.
+  구형 `{ type: "note", … }` 입력은 거부된다 (D-8 — 진입점은 불변 대상만, fork는 복사)
 
 검증기는 게임 규칙상 정합성(보드 내용의 의미)은 판정하지 않는다 — notes 명세 §3-4
 "Worker는 게임 로직을 모른다"에 따라 구조·한도·산술 경계까지만 책임진다.

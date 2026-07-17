@@ -26,11 +26,8 @@ export type Note = {
   updatedAt: string;
 };
 
-/** 진입점: 리플레이의 한 프레임 또는 다른 노트의 한 페이지 */
-// note 변형 제거는 #2(S-1) 미결 — sim(derive.ts)이 note 변형을 생성·의존하므로 sim 개정 후 이행.
-export type Origin =
-  | { type: "replay"; round: number; player: number; frame: number }
-  | { type: "note"; clientId: string; noteId: string; pageId: string };
+/** 진입점: 리플레이의 한 프레임 (D-8 — 불변 대상만 가리킨다. fork는 참조가 아니라 복사) */
+export type Origin = { type: "replay"; round: number; player: number; frame: number };
 
 export type Snapshot = {
   ruleset: {
@@ -95,8 +92,12 @@ export const NOTES_LIMITS = {
   boardWidth: 10,
 } as const;
 
+/** note id 형식 — 딥링크에 노출되는 동결 형식(F-1)의 유일 출처.
+    page.id도 동일 형식을 공유한다(내부 식별자 — 링크 비노출). */
+export const NOTE_ID_PATTERN = /^[A-Za-z0-9_-]{8}$/;
+
 const clientIdSchema = z.string().regex(/^[A-Za-z0-9_-]{12}$/, "clientId는 [A-Za-z0-9_-]{12}");
-const idSchema = z.string().regex(/^[A-Za-z0-9_-]{8}$/, "id는 [A-Za-z0-9_-]{8}");
+const idSchema = z.string().regex(NOTE_ID_PATTERN, "id는 [A-Za-z0-9_-]{8}");
 const pieceTypeSchema = z.enum(["I", "J", "L", "O", "S", "T", "Z"]);
 const countersSchema = z.object({
   b2b: z.number().int().min(-1), // D-9: -1 = 없음, 0부터 유효
@@ -111,21 +112,13 @@ const boardRowsSchema = z.object({
 });
 
 /** Origin 단독 검증기 (W0 게이트 승인으로 공개 — adapter·sim의 부분 검증용).
-    note 변형 제거는 #2(S-1)에서 추적 — sim 개정 후 이행 */
-export const originSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("replay"),
-    round: z.number().int().nonnegative(), // 원본 리플레이 기준 라운드 번호(0-base)
-    player: z.number().int().nonnegative(), // 보드 인덱스(0-base). 솔로는 0 고정
-    frame: z.number().int().nonnegative(),
-  }),
-  z.object({
-    type: z.literal("note"),
-    clientId: clientIdSchema,
-    noteId: idSchema,
-    pageId: idSchema,
-  }),
-]);
+    type 리터럴로 구형 입력 { type: "note", … }을 거부한다 (M1c — #2(S-1) 이행 완료) */
+export const originSchema = z.object({
+  type: z.literal("replay"),
+  round: z.number().int().nonnegative(), // 원본 리플레이 기준 라운드 번호(0-base)
+  player: z.number().int().nonnegative(), // 보드 인덱스(0-base). 솔로는 0 고정
+  frame: z.number().int().nonnegative(),
+});
 
 /** Snapshot 단독 검증기 (adapter-tetrio A-7 산출물 검증용) */
 export const snapshotSchema = z.object({

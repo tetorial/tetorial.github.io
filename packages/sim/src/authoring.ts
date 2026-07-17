@@ -1,6 +1,7 @@
 // 저작 세션 — 노트 드래프트의 상태 머신 (명세 §3). UI 프레임워크 무관 순수 로직.
 import { SimEngine } from "@tetorial/engine";
 import type { Cell, LockInfo } from "@tetorial/engine";
+import { NOTE_ID_PATTERN } from "@tetorial/types";
 import type { Note, Origin, Page, PageState, Snapshot } from "@tetorial/types";
 import { NoteLimitError, checkNoteLimits, SERVER_FIELD_SENTINELS } from "./assemble.js";
 import { makePageId } from "./ids.js";
@@ -369,10 +370,6 @@ export class InvalidNoteIdError extends Error {
   }
 }
 
-// note id 규격 — 유일 출처는 @tetorial/types notes 스키마(notes.ts idSchema)다.
-// 미공개 심볼이라 리터럴을 둔다. M1c에서 공개 상수 승격 검토 (sim-m1b §3).
-const NOTE_ID_SHAPE = /^[A-Za-z0-9_-]{8}$/;
-
 /**
  * 저작 세션 생성 — 자기 노트 재편집(existing) 또는 신규(origin+snapshot+noteId 주입).
  * 신규 경로만 입구 방어: 형식 불일치·existingNoteIds 충돌 시 InvalidNoteIdError throw.
@@ -396,7 +393,8 @@ export function createAuthoringSession(
     ({ origin, snapshot, id: noteId } = init.existing);
     pages = deepClone(init.existing.pages);
   } else {
-    if (!NOTE_ID_SHAPE.test(init.noteId)) {
+    // note id 규격의 유일 출처는 @tetorial/types의 NOTE_ID_PATTERN (M1c 공개 승격)
+    if (!NOTE_ID_PATTERN.test(init.noteId)) {
       throw new InvalidNoteIdError("shape", `noteId 형식 위반 ([A-Za-z0-9_-]{8}): ${init.noteId}`);
     }
     if (init.existingNoteIds?.includes(init.noteId)) {

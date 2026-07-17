@@ -18,6 +18,8 @@ export {
   pageSchema,
   pageStateSchema,
   NOTES_LIMITS,
+  // note id 형식의 유일 출처 — M1c 승격 (types-m1c §3)
+  NOTE_ID_PATTERN,
 } from "./notes.js";
 
 export type { MetaFile } from "./meta.js";

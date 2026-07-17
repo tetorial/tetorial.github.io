@@ -34,11 +34,6 @@ function replayNote(id: string, round: number, player: number, frame: number, co
   };
 }
 
-function noteNote(id: string): Note {
-  const base = replayNote(id, 0, 0, 100);
-  return { ...base, origin: { type: "note", clientId: "k3XmP9qLwR2v", noteId: "AbCdEf12", pageId: "Pg345678" } };
-}
-
 // AW-10 마커·딥링크: 노트 마커 위치·클러스터.
 describe("AW-10 노트 마커 수집", () => {
   it("AW-10 현재 라운드·플레이어의 replay 진입 노트만 프레임순으로 수집", () => {
@@ -51,7 +46,6 @@ describe("AW-10 노트 마커 수집", () => {
           replayNote("bbbbbbbb", 0, 0, 100),
           replayNote("cccccccc", 1, 0, 300), // 다른 라운드
           replayNote("dddddddd", 0, 1, 200), // 다른 플레이어
-          noteNote("eeeeeeee"), // note 진입 — 타임라인 대상 아님
         ],
       },
     ];

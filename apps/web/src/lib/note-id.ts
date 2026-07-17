@@ -1,6 +1,6 @@
 // 노트 id 생성 — sim은 CSPRNG 미접촉(결정론)이므로 id는 웹이 만들어 값으로 주입한다
-// (sim-m1b §6). 규격은 @tetorial/types notes 스키마(idSchema): [A-Za-z0-9_-]{8}.
-// M1d(딥링크·UX 개정)가 이 유틸을 재사용한다.
+// (sim-m1b §6). 규격의 유일 출처는 @tetorial/types의 공개 상수 NOTE_ID_PATTERN:
+// [A-Za-z0-9_-]{8} (M1c 승격). M1d(딥링크·UX 개정)가 이 유틸을 재사용한다.
 
 /** URL-safe 알파벳 64자 = 6비트/문자 — 바이트 % 64는 무편향 */
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";

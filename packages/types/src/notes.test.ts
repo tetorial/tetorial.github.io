@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
-import { notesFileSchema, NOTES_LIMITS, type NotesFile, type Note } from "./index.js";
+import {
+  notesFileSchema,
+  originSchema,
+  NOTES_LIMITS,
+  NOTE_ID_PATTERN,
+  type NotesFile,
+  type Note,
+  type Origin,
+} from "./index.js";
 
 // docs/specs/notes-schema.md §5 전체 예시 — 자구 그대로 (수정 금지)
 const specExampleJson = `{
@@ -221,7 +229,7 @@ describe("W0b-2 한도 경계 매트릭스 (notes-schema §4·§6)", () => {
     expect(checkMutated((f) => void (f.createdAt = "어제"))).toBe(false);
   });
 
-  it("origin 판별 유니온: 미지의 type 거부 / 음수 frame 거부 / note 참조 형식 검증", () => {
+  it("origin: 미지의 type 거부 / 음수 frame 거부 (note 변형 케이스는 M1c-2로 재배치)", () => {
     expect(
       checkMutated((f) => {
         (firstNote(f) as { origin: unknown }).origin = { type: "fumen", page: 1 };
@@ -230,26 +238,6 @@ describe("W0b-2 한도 경계 매트릭스 (notes-schema §4·§6)", () => {
     expect(
       checkMutated((f) => {
         firstNote(f).origin = { type: "replay", round: 0, player: 0, frame: -1 };
-      }),
-    ).toBe(false);
-    expect(
-      checkMutated((f) => {
-        firstNote(f).origin = {
-          type: "note",
-          clientId: "k3XmP9qLwR2v",
-          noteId: "aB3dE5fG",
-          pageId: "p1Q2w3E4",
-        };
-      }),
-    ).toBe(true);
-    expect(
-      checkMutated((f) => {
-        firstNote(f).origin = {
-          type: "note",
-          clientId: "짧다",
-          noteId: "aB3dE5fG",
-          pageId: "p1Q2w3E4",
-        };
       }),
     ).toBe(false);
   });
@@ -304,8 +292,7 @@ describe("W0b-3 v1 예약 요소 — D 셀·overlays (notes-schema 결정 로그
 });
 
 // ---------------------------------------------------------------------------
-// M1a 개정 — 노트 한도 10. Origin 단일화(note 변형 제거)는 sim(derive.ts)이
-// note 변형을 생성·의존해 이 웨이브에서 보류 — #2(S-1)에서 추적, sim 개정 후 이행.
+// M1a 개정 — 노트 한도 10.
 // ---------------------------------------------------------------------------
 
 describe("M1a-3 노트 한도 10 (types-m1a §3)", () => {
@@ -318,5 +305,70 @@ describe("M1a-3 노트 한도 10 (types-m1a §3)", () => {
     expect(NOTES_LIMITS.maxNotesPerReplay).toBe(10);
     // maxNotes(파일당)는 합산 한도의 따름 상한 — 두 값이 같다 (types-m1a §3)
     expect(NOTES_LIMITS.maxNotes).toBe(NOTES_LIMITS.maxNotesPerReplay);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M1c 개정 — Origin 리플레이 단일형 확정(#2/S-1 이행) + note id 규격 공개 상수 승격.
+// ---------------------------------------------------------------------------
+
+// 타입 레벨 검증: Origin 손 선언 타입(단일형)과 zod 추론 타입의 상호 할당성
+const originTypeMatches: MutualExtends<Origin, z.infer<typeof originSchema>> = true;
+
+describe("M1c-1 Origin 단일화 (types-m1c §2)", () => {
+  it("M1c-1 유효한 replay origin이 파싱·직렬화 왕복을 통과한다", () => {
+    const origin = { type: "replay", round: 1, player: 0, frame: 841 };
+    const parsed = originSchema.parse(JSON.parse(JSON.stringify(origin)));
+    expect(parsed).toEqual(origin);
+    expect(JSON.parse(JSON.stringify(parsed))).toEqual(origin);
+  });
+
+  it("M1c-1 Origin 타입과 originSchema 추론 타입이 상호 할당 가능하다 (note 변형 부재)", () => {
+    expect(originTypeMatches).toBe(true);
+  });
+});
+
+describe("M1c-2 구형 note origin 거부 (types-m1c §2)", () => {
+  const legacyNoteOrigin = {
+    type: "note",
+    clientId: "k3XmP9qLwR2v",
+    noteId: "aB3dE5fG",
+    pageId: "p1Q2w3E4",
+  };
+
+  it("M1c-2 originSchema가 { type: 'note', … } 입력을 거부한다", () => {
+    expect(originSchema.safeParse(legacyNoteOrigin).success).toBe(false);
+  });
+
+  it("M1c-2 notesFileSchema가 note origin을 담은 노트를 거부한다", () => {
+    expect(
+      checkMutated((f) => {
+        (firstNote(f) as { origin: unknown }).origin = legacyNoteOrigin;
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("M1c-4 note id 규격 공개 상수 (types-m1c §3)", () => {
+  it("M1c-4 NOTE_ID_PATTERN이 공개 API로 노출되고 [A-Za-z0-9_-]{8}을 강제한다", () => {
+    expect(NOTE_ID_PATTERN).toBeInstanceOf(RegExp);
+    expect(NOTE_ID_PATTERN.test("aB3dE5fG")).toBe(true);
+    expect(NOTE_ID_PATTERN.test("_-_-_-_-")).toBe(true);
+    expect(NOTE_ID_PATTERN.test("aB3dE5f")).toBe(false); // 7자
+    expect(NOTE_ID_PATTERN.test("aB3dE5fG9")).toBe(false); // 9자
+    expect(NOTE_ID_PATTERN.test("aB3dE5f!")).toBe(false); // 허용 외 문자
+    expect(NOTE_ID_PATTERN.test("한글아이디아님")).toBe(false);
+  });
+
+  it("M1c-4 내부 idSchema(note.id·page.id)가 동일 규격을 강제한다 (단일 출처)", () => {
+    expect(checkMutated((f) => void (firstNote(f).id = "aB3dE5fG"))).toBe(true);
+    expect(checkMutated((f) => void (firstNote(f).id = "aB3dE5f"))).toBe(false);
+    expect(
+      checkMutated((f) => {
+        const page = firstNote(f).pages[0];
+        if (!page) throw new Error("예시에 페이지가 없다");
+        page.id = "8자초과아이디임!";
+      }),
+    ).toBe(false);
   });
 });
