@@ -45,6 +45,39 @@ async function fetchExistingBody(gist: GistApiResponse, filename: string): Promi
   return await res.text();
 }
 
+/** notes 파일 하나의 노트 수. 형식이 깨진 파일은 0으로 센다 — 손상 파일 하나가 gist 전체 쓰기를 막지 않게. */
+function countNotes(raw: string): number {
+  try {
+    const o = JSON.parse(raw) as { notes?: unknown };
+    return Array.isArray(o.notes) ? o.notes.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 리플레이(=gist) 합산 노트 한도 (#35, M2E-1). 대상 파일을 요청본으로 교체했을 때의 총합이
+ * NOTES_LIMITS.maxNotesPerReplay를 넘으면 422 limit-exceeded. 노트 수가 늘지 않는 수정은
+ * 이미 한도에 도달한 gist에서도 통과한다 (초과 "생성"만 거부).
+ */
+async function assertReplayNotesLimit(
+  gist: GistApiResponse,
+  targetFilename: string,
+  incomingCount: number,
+): Promise<void> {
+  let total = incomingCount;
+  for (const name of Object.keys(gist.files)) {
+    if (name === targetFilename || !/^notes-.+\.json$/.test(name)) continue;
+    total += countNotes(await fetchExistingBody(gist, name));
+  }
+  if (total > NOTES_LIMITS.maxNotesPerReplay) {
+    throw new ApiError("limit-exceeded", {
+      message: `리플레이당 노트 한도(${NOTES_LIMITS.maxNotesPerReplay}개)를 초과합니다.`,
+      detail: { limit: NOTES_LIMITS.maxNotesPerReplay, total },
+    });
+  }
+}
+
 export async function handleNotes(
   request: Request,
   env: Env,
@@ -96,6 +129,9 @@ export async function handleNotes(
     file.createdAt = new Date().toISOString();
   }
   file.updatedAt = new Date().toISOString();
+
+  // 리플레이 합산 노트 한도 — 인증(editKey) 통과 후, 저장 직전 검사 (#35, M2E-1)
+  await assertReplayNotesLimit(gist, filename, file.notes.length);
 
   // 직렬화 크기 상한 (types는 파싱된 객체만 보므로 크기 강제는 Worker 몫, §6·README)
   const content = JSON.stringify(file);
