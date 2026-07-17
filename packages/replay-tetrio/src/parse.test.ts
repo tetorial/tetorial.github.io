@@ -1,4 +1,4 @@
-// RT-1 파싱 — docs/specs/replay-tetrio.md §9
+// RT-1 파싱 — 구명세 replay-tetrio §9
 import { describe, expect, it } from "vitest";
 import { parseReplay } from "./parse.js";
 import { hasTtr, hasTtrm, loadTtrDoc, loadTtrmDoc } from "./testing/fixtures.js";

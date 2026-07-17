@@ -1,4 +1,4 @@
-// triangle(@haelp/teto) 엔진 상태 → notes Snapshot 변환 — docs/specs/adapter-tetrio.md v1
+// triangle(@haelp/teto) 엔진 상태 → notes Snapshot 변환 — 구명세 adapter-tetrio
 // 모든 매핑 값은 2026-07-10 스파이크 실측 확정본(명세 §3·§4)이다. 임의 변경 금지.
 import type { Engine, Tile } from "@haelp/teto/engine";
 import { NOTES_LIMITS, type PieceType, type Snapshot } from "@tetorial/types";

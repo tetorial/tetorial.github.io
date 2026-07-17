@@ -8,7 +8,7 @@ import type { Op } from "./fixtures.js";
 
 export { kickData, tetrominoes };
 
-/** 재생 하네스와 동일한 기본 옵션 (tools/spike/harness_lib.mjs 대응, 시각은 고정값) */
+/** 재생 하네스와 동일한 기본 옵션 (triangle 청사진 convert 대응 — docs/research/2026-07-10-triangle-spike.md §3, 시각은 고정값) */
 function initParams(snapshot: Snapshot): EngineInitializeParams {
   const kickTable = snapshot.ruleset.preset === "srs" ? "SRS" : "SRS+";
   const spinBonuses =

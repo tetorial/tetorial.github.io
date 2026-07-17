@@ -1,4 +1,4 @@
-// 실물 리플레이 골든 테스트 — 수용 기준 A-1·A-3·A-5·A-6·A-7 (docs/specs/adapter-tetrio.md §6)
+// 실물 리플레이 골든 테스트 — 수용 기준 A-1·A-3·A-5·A-6·A-7 (구명세 adapter-tetrio §6)
 // fixture는 공개 커밋 미결(decisions 미결 항목) → 부재 시 skip (kickoff §1-4)
 import { beforeAll, describe, expect, it } from "vitest";
 import { snapshotSchema } from "@tetorial/types";

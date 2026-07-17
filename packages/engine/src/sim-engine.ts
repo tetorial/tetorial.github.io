@@ -1,4 +1,4 @@
-// SimEngine — 명세 docs/specs/engine.md §6(상태 모델)·§7(API)·§8(스핀·클리어·카운터)
+// SimEngine — 구명세 engine §6(상태 모델)·§7(API)·§8(스핀·클리어·카운터)
 // 완전 결정론: 같은 입력 → 같은 출력. 랜덤·시각 API 사용 금지 (명세 §3).
 import type { PageState, PieceType, Snapshot } from "@tetorial/types";
 import { clearFullRows, isLegal, parseBoard, serializeBoard } from "./board.js";

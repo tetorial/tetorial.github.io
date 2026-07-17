@@ -1,4 +1,4 @@
-// 노트 파일(notes-<clientId>.json) 스키마 — docs/specs/notes-schema.md §4(타입)·§6(한도) 자구 전사
+// 노트 파일(notes-<clientId>.json) 스키마 — 구명세 notes-schema §4(타입)·§6(한도) 자구 전사
 import { z } from "zod";
 import { codePointLength, isoUtcSchema, sha256HexSchema } from "./shared.js";
 

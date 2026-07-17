@@ -1,7 +1,7 @@
 // 엔진 초기화(convert) + 프레임 버킷팅 — 명세 §4.
 //
 // triangle 청사진 `test/engine/replay.ts`의 convert()를 TS로 포팅한다.
-// 시작점은 스파이크 JS 포팅본(`tools/spike/run_replay.mjs`)이며, 폴백 표는
+// 시작점은 스파이크 JS 포팅본(삭제됨 — docs/research/2026-07-10-triangle-spike.md §3)이며, 폴백 표는
 // convert-defaults.ts 한 곳에 모았다(명세 §4). RT-2가 이 포팅의 정확성을 회귀 고정한다.
 import type { Engine, EngineInitializeParams } from "@haelp/teto/engine";
 import { CONVERT_DEFAULTS as D, ENGINE_INIT_DATE } from "./convert-defaults.js";

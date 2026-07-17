@@ -1,4 +1,4 @@
-// 수용 기준 I-1 ~ I-6 — 엔진 mock의 호출 기록으로 검증 (명세 docs/specs/input.md §5).
+// 수용 기준 I-1 ~ I-6 — 엔진 mock의 호출 기록으로 검증 (구명세 input §5).
 import { describe, expect, it } from "vitest";
 import { createInput } from "./core.js";
 import type { EngineControls, MetaAction } from "./types.js";

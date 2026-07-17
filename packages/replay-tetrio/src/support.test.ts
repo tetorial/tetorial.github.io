@@ -1,4 +1,4 @@
-// RT-5 지원성 보고 — docs/specs/replay-tetrio.md §9
+// RT-5 지원성 보고 — 구명세 replay-tetrio §9
 import { describe, expect, it } from "vitest";
 import type { TetrioRoundOptions } from "./convert.js";
 import type { RoundEntry } from "./parse.js";

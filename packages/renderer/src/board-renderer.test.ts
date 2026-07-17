@@ -1,4 +1,4 @@
-// BoardRenderer 수용 기준 — RD-1·RD-2·RD-3·RD-5·RD-6·RD-7 (docs/specs/renderer.md §7).
+// BoardRenderer 수용 기준 — RD-1·RD-2·RD-3·RD-5·RD-6·RD-7 (구명세 renderer §7).
 // 그리기 로직은 호출 기록 mock 2D 컨텍스트로 검증(픽셀 스냅샷 아님, 명세 §7).
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";

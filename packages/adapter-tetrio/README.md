@@ -62,5 +62,5 @@ if (!result.ok) {
 - 수용 기준 A-1~A-7 전부 테스트 이름에 ID 명시 (`src/capture.test.ts`, `src/golden.test.ts`).
 - 골든 테스트는 `fixtures/replay_sample.ttrm`(공개 커밋 미결 — gitignore) **부재 시 skip**
   (kickoff §1-4). 로컬에 fixture를 두면 실물 검증까지 수행된다.
-- `src/testing/harness.ts`는 triangle 공식 재생 청사진(`tools/spike/harness_lib.mjs`)의
-  TS 포팅본 — 테스트 전용이며 공개 API가 아니다.
+- `src/testing/harness.ts`는 triangle 공식 재생 청사진(`test/engine/replay.ts` —
+  `docs/research/2026-07-10-triangle-spike.md` §3)의 TS 포팅본 — 테스트 전용이며 공개 API가 아니다.

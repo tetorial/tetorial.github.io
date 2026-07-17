@@ -10,7 +10,7 @@ import {
   type Origin,
 } from "./index.js";
 
-// docs/specs/notes-schema.md §5 전체 예시 — 자구 그대로 (수정 금지)
+// 구명세 notes-schema §5 전체 예시 — 자구 그대로 (수정 금지)
 const specExampleJson = `{
   "schema": "tetorial.notes/1",
   "clientId": "k3XmP9qLwR2v",

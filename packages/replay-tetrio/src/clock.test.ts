@@ -1,4 +1,4 @@
-// RT-8 시계 분리 — docs/specs/replay-tetrio.md §9
+// RT-8 시계 분리 — 구명세 replay-tetrio §9
 // 수동 타이머로 PlaybackClock 구동. 배속·일시정지·프레임 경계 정렬 검증.
 // (코어 재생 테스트는 시계 없이 통과하므로 여기선 스텁 컨트롤러로 시계 로직만 격리 검증.)
 import { beforeEach, describe, expect, it } from "vitest";

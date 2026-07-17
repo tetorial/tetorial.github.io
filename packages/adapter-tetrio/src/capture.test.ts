@@ -1,4 +1,4 @@
-// captureSnapshot 단위 테스트 — 수용 기준 A-2·A-3·A-4·A-5·A-6·A-7 (docs/specs/adapter-tetrio.md §6)
+// captureSnapshot 단위 테스트 — 수용 기준 A-2·A-3·A-4·A-5·A-6·A-7 (구명세 adapter-tetrio §6)
 // 골든(실물 리플레이) 검증은 golden.test.ts.
 import { describe, expect, it, vi } from "vitest";
 import type { Engine, IncomingGarbage, Mino } from "@haelp/teto/engine";
