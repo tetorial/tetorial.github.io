@@ -21,9 +21,16 @@ import type { CaptureResult } from "@tetorial/adapter-tetrio";
 import type { Tool, WorkView } from "@tetorial/sim";
 import type { Note } from "@tetorial/types";
 
-/** 시뮬레이터 진입 경로 — 리플레이 분기(신규 노트) 또는 내 노트 이어서 편집(AW-13). */
+/** 시뮬레이터 진입 경로 — 리플레이 분기(신규 노트) 또는 내 노트 이어서 편집(AW-13).
+    분기 실패는 진입 전에 인라인 안내로 소화된다(AW-22) — 성공 변형만 도달할 수 있다. */
 export type SimEntry =
-  | { kind: "branch"; branch: CaptureResult; frame: number; round: number; player: number }
+  | {
+      kind: "branch";
+      branch: Extract<CaptureResult, { ok: true }>;
+      frame: number;
+      round: number;
+      player: number;
+    }
   | { kind: "existing"; note: Note };
 
 interface Props {
@@ -55,7 +62,6 @@ export default function SimulatorPanel(props: Props) {
       // 재편집은 { existing }만 넘긴다 — id·origin·snapshot 전부 노트에서 온다(M1b-5).
       init = { existing: entry.note };
     } else {
-      if (!entry.branch.ok) return; // 분기 불가 — 아래 차단 화면을 그린다
       const clientId = props.storage.getOrCreateClientId();
       const myFile = props.loaded.notesFiles.find((f) => f.clientId === clientId);
       init = {
@@ -103,14 +109,6 @@ export default function SimulatorPanel(props: Props) {
   };
 
   const sim = simRef.current;
-  if (props.entry.kind === "branch" && !props.entry.branch.ok) {
-    return (
-      <div class="sim-modal" data-testid="sim-blocked">
-        <p>이 지점은 분기할 수 없습니다: {props.entry.branch.reason}</p>
-        <button class="btn" onClick={props.onExit}>닫기</button>
-      </div>
-    );
-  }
   if (!sim) return null;
 
   const onCellPointer = (cell: { x: number; y: number }, phase: "down" | "move" | "up"): void => {

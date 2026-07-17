@@ -70,6 +70,18 @@ describe("AW-9 오류 매핑 (§6 표 전 행)", () => {
     expect(e.action).toEqual({ kind: "none" });
   });
 
+  it("AW-21 worker-unconfigured(읽기 경로) → 조회 서비스 미설정 안내, writes-disabled와 구분", () => {
+    const e = toDisplayError({ source: "worker-unconfigured" });
+    expect(e.title).toBe("리플레이 조회 서비스가 설정되지 않았습니다");
+    expect(e.action).toEqual({ kind: "none" });
+    const writes = toDisplayError({
+      source: "worker",
+      status: 503,
+      body: { code: "writes-disabled" },
+    });
+    expect(e.title).not.toBe(writes.title);
+  });
+
   it("AW-9 Worker의 message(한국어)를 기본 표시하되 행동을 덧붙인다", () => {
     const e = toDisplayError({
       source: "worker",

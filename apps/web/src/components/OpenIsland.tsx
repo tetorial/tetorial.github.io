@@ -1,8 +1,8 @@
 // 홈 진입 아일랜드 (apps-web §2 OpenIsland) — 파일 드롭/선택 + gist URL 입력.
 import { useState, useCallback, useRef } from "preact/hooks";
 import { withBase } from "../lib/base-url.ts";
-import { buildDeepLink } from "../lib/deeplink.ts";
-import { stashPendingReplay, extractGistId } from "../lib/handoff.ts";
+import { stashPendingReplay } from "../lib/handoff.ts";
+import { resolveGistInput, GIST_INPUT_PLACEHOLDER } from "../lib/gist-input.ts";
 
 // 로컬 파일 핸드오프는 식별자가 없으므로 /replay/(자산 정규형 — _redirects 주석)로 직행한다.
 function goToReplay(): void {
@@ -33,12 +33,12 @@ export default function OpenIsland() {
   );
 
   const onGistOpen = useCallback(() => {
-    const id = extractGistId(gistInput);
-    if (id === null) {
-      setError("공유 링크 또는 gist ID 형식이 올바르지 않습니다.");
+    const res = resolveGistInput(gistInput); // 해석·분기는 공용 헬퍼(AW-20) — EmptyState와 동일 의미론
+    if (!res.ok) {
+      setError(res.message);
       return;
     }
-    window.location.href = buildDeepLink({ gistId: id }); // 경로형 정규형 발신(M1d-1)
+    window.location.href = res.url; // 경로형 정규형 발신(M1d-1)
   }, [gistInput]);
 
   return (
@@ -80,7 +80,7 @@ export default function OpenIsland() {
         <div class="gist-row">
           <input
             type="text"
-            placeholder="공유 링크 또는 gist ID"
+            placeholder={GIST_INPUT_PLACEHOLDER}
             value={gistInput}
             onInput={(e) => setGistInput((e.target as HTMLInputElement).value)}
             data-testid="gist-input"
