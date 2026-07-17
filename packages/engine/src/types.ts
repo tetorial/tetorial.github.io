@@ -1,4 +1,4 @@
-// 엔진 공개 타입 — 명세 docs/specs/engine.md §5(룰셋)·§7(API) 자구 전사
+// 엔진 공개 타입 — 구명세 engine §5(룰셋)·§7(API) 자구 전사
 import type { PieceType } from "@tetorial/types";
 
 /** 회전 상태 (0=스폰, 1=CW, 2=180, 3=CCW) */
@@ -10,7 +10,7 @@ export type Cell = "_" | "G" | "D" | PieceType;
 /** 보드 절대 좌표 — 정의는 @tetorial/types (전 모듈 공통 규약) */
 export type { CellPos } from "@tetorial/types";
 
-/** v1 지원 스핀 판정 모드. 이외 tetr.io 모드는 v2 (명세 §10) */
+/** 지원 스핀 판정 모드 2종. 이외 tetr.io 모드는 미지원 — 거부 정책은 D-10, 목록화·안내는 #13 */
 export type SpinBonusMode = "T-spins" | "all-mini+";
 
 export type RulesetConfig = {

@@ -1,4 +1,4 @@
-// RT-2 재생 결정론 회귀 — docs/specs/replay-tetrio.md §9
+// RT-2 재생 결정론 회귀 — 구명세 replay-tetrio §9
 // fixture는 익명화본(D-16). 유저명만 치환됐고 게임 데이터는 원본 그대로이므로 실측 수치 불변.
 import { describe, expect, it } from "vitest";
 import { parseReplay } from "./parse.js";

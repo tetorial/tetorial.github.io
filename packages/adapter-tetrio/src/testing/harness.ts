@@ -1,5 +1,5 @@
 // 테스트 전용 재생 하네스 — 런타임 소스가 아니다.
-// tools/spike/harness_lib.mjs(triangle 공식 청사진 test/engine/replay.ts 포팅본)의 TS판.
+// triangle 공식 청사진 test/engine/replay.ts 포팅본의 TS판 (docs/research/2026-07-10-triangle-spike.md §3).
 // conventions §4: @haelp/teto는 이 패키지의 peer/devDependency로 테스트에서 직접 사용 가능.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";

@@ -1,5 +1,5 @@
 // triangle-data.json(@haelp/teto v4.2.7 원본 무수정 복제)의 타입 안전 접근 계층.
-// 값의 해석(적용 수식)은 docs/specs/appendix-engine-rules.md가 규범이며, 여기서는
+// 값의 해석(적용 수식)은 docs/appendix-engine-rules.md가 규범이며, 여기서는
 // strict 인덱싱을 위해 모듈 로드 시 1회 정규화만 수행한다 (값 변형 없음).
 import raw from "./data/triangle-data.json";
 

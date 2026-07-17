@@ -1,4 +1,4 @@
-// RT-6 분기 연동 — docs/specs/replay-tetrio.md §9
+// RT-6 분기 연동 — 구명세 replay-tetrio §9
 // captureBranch() 산출 Snapshot이 어댑터 A-1(큐 정합성 골든)을 fixture에서 통과.
 import { describe, expect, it } from "vitest";
 import type { Engine } from "@haelp/teto/engine";

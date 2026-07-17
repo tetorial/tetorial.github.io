@@ -1,4 +1,4 @@
-// RT-4 seek 등가성 — docs/specs/replay-tetrio.md §9
+// RT-4 seek 등가성 — 구명세 replay-tetrio §9
 // 어떤 경로로 프레임 f에 도달하든 engine.snapshot()이 동일해야 한다(§5-2).
 import { describe, expect, it } from "vitest";
 import { TetrioPlayback } from "./playback.js";

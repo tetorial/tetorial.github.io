@@ -1,4 +1,4 @@
-// @tetorial/input 코어 — 주입식 시각의 순수 상태 머신 (명세 docs/specs/input.md §3·§4)
+// @tetorial/input 코어 — 주입식 시각의 순수 상태 머신 (구명세 input §3·§4)
 // 완전 결정론: 같은 (press/release/tick, t) 열 → 같은 엔진 호출 열 (I-6).
 // Date·Math.random 미사용 (시각은 전부 인자 t로 주입).
 import type {

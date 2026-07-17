@@ -1,4 +1,4 @@
-// RT-3 발췌 등가성 — docs/specs/replay-tetrio.md §9
+// RT-3 발췌 등가성 — 구명세 replay-tetrio §9
 import { describe, expect, it } from "vitest";
 import { excerptRounds, roundSizes } from "./excerpt.js";
 import { parseReplay } from "./parse.js";

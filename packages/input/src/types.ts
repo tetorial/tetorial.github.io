@@ -1,4 +1,4 @@
-// @tetorial/input 공개 타입 — 명세 docs/specs/input.md §2(설정)·§4(API)
+// @tetorial/input 공개 타입 — 구명세 input §2(설정)·§4(API)
 // 명세에 없는 공개 API 추가 금지 (conventions §5) — 제안은 QUESTIONS.md로.
 
 /** 바인딩 가능한 액션. 게임 조작 + 메타 액션(undo/redo/addPage)을 모두 포함 (명세 §2) */

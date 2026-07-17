@@ -1,4 +1,4 @@
-// 리플레이 메타데이터(meta.json) 스키마 — docs/specs/meta-schema.md §2(타입)·§3(필드 규약) 자구 전사
+// 리플레이 메타데이터(meta.json) 스키마 — 구명세 meta-schema §2(타입)·§3(필드 규약) 자구 전사
 import { z } from "zod";
 import { codePointLength, isoUtcSchema, sha256HexSchema } from "./shared.js";
 

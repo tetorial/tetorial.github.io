@@ -1,4 +1,4 @@
-// RT-7 displayCache — docs/specs/replay-tetrio.md §9
+// RT-7 displayCache — 구명세 replay-tetrio §9
 import { describe, expect, it } from "vitest";
 import { extractDisplayCache } from "./display-cache.js";
 import { hasTtr, hasTtrm, loadTtrDoc, loadTtrmDoc } from "./testing/fixtures.js";

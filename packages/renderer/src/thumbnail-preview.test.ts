@@ -1,4 +1,4 @@
-// 보조 렌더 수용 기준 — RD-4 (썸네일·미리보기, docs/specs/renderer.md §7).
+// 보조 렌더 수용 기준 — RD-4 (썸네일·미리보기, 구명세 renderer §7).
 import { describe, expect, it } from "vitest";
 import type { PieceType } from "@tetorial/types";
 import { renderPiecePreview, renderThumbnail } from "./board-renderer.js";

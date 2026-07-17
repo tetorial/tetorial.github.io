@@ -1,8 +1,8 @@
 // triangle convert() 기본값 폴백 표 — 명세 §4.
 //
 // 출처: triangle(@haelp/teto) 청사진 `test/engine/replay.ts`의 convert()가 각 옵션에
-// 적용하는 `?? 리터럴` 값을 한 곳에 모은 것이다. 스파이크 JS 포팅본
-// (`tools/spike/run_replay.mjs`)에서 실물 리플레이 전 라운드 재생으로 검증됐다.
+// 적용하는 `?? 리터럴` 값을 한 곳에 모은 것이다. 스파이크 JS 포팅본(삭제됨)에서
+// 실물 리플레이 전 라운드 재생으로 검증됐다 — docs/research/2026-07-10-triangle-spike.md §5.
 //
 // 규칙(명세 §4):
 //   - 실물 ttrm/ttr은 옵션 다수를 생략한다(샘플에서 bagtype·kickset 등 부재 확인) →
