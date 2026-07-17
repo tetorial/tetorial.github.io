@@ -6,7 +6,7 @@ pnpm workspaces 모노레포 (Node ≥22, pnpm 10.13.1).
 
 ## 명령어
 
-로컬 셸에서 pnpm은 PATH 프리픽스가 필요하다 → [docs/dev-env.md](docs/dev-env.md) 참조.
+로컬 환경 제약(버전 고정·corepack 금지 등)은 [docs/dev-env.md](docs/dev-env.md) 참조.
 
 ```sh
 pnpm install                          # 의존성 설치
