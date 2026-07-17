@@ -1,6 +1,8 @@
-# 웹 배포 (conventions §6): main push 시 apps/web 빌드 → GitHub Pages 배포(공식 actions/deploy-pages).
-# 배포는 조직 루트 사이트(D-18): astro.config의 site="https://tetorial.github.io" + base="/".
-# Worker URL은 저장소 변수 PUBLIC_WORKER_URL로 주입(conventions §7 — 시크릿 아님, 공개 URL).
+# 웹 배포 (conventions §6): main push 시 apps/web 빌드 → Cloudflare Pages 직접 업로드(D-19).
+# 빌드는 GitHub Actions, 배포는 wrangler pages deploy — 배포 설정이 저장소 안 파일로 유지된다.
+# 사이트: https://tetorial.pages.dev (D-19). Worker URL은 저장소 변수 PUBLIC_WORKER_URL로 주입
+# (conventions §7 — 시크릿 아님, 공개 URL). 시크릿: CLOUDFLARE_API_TOKEN(Pages Edit 권한),
+# CLOUDFLARE_ACCOUNT_ID.
 name: Deploy Web
 
 on:
@@ -16,16 +18,14 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# Pages 배포는 동시성 1개 (진행 중 배포를 취소하지 않고 큐잉)
+# 배포는 동시성 1개 (진행 중 배포를 취소하지 않고 큐잉)
 concurrency:
-  group: pages
+  group: deploy-web
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,16 +39,8 @@ jobs:
         run: pnpm --filter @tetorial/web build
         env:
           PUBLIC_WORKER_URL: ${{ vars.PUBLIC_WORKER_URL }}
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: apps/web/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy to Cloudflare Pages
+        run: pnpm dlx wrangler pages deploy apps/web/dist --project-name=tetorial
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
