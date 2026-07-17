@@ -218,19 +218,23 @@ class InputCoreImpl implements InputCore {
         this.#softPress(t);
         break;
       case "hardDrop":
-        this.#hardDrop();
+        this.#hardDrop(t);
         break;
       case "rotateCW":
         this.#target.rotate("cw");
+        this.#reapplyInvariant(t);
         break;
       case "rotateCCW":
         this.#target.rotate("ccw");
+        this.#reapplyInvariant(t);
         break;
       case "rotate180":
         this.#target.rotate("180");
+        this.#reapplyInvariant(t);
         break;
       case "hold":
         this.#target.swapHold();
+        this.#reapplyInvariant(t);
         break;
       case "undo":
       case "redo":
@@ -296,14 +300,12 @@ class InputCoreImpl implements InputCore {
     }
   }
 
-  #hardDrop(): void {
+  #hardDrop(t: number): void {
     // 엔진 §7: 큐 소진 상태의 hardDrop()은 throw → currentPiece 관측으로 사전 차단
     if (this.#target.currentPiece === null) return;
     this.#target.hardDrop();
-    // §3-3: SDF ∞ 홀드 중 락 이후 새 미노에도 즉시 재적용
-    if (this.#softCount > 0 && this.#isFloorMode() && this.#target.currentPiece !== null) {
-      this.#target.softDropToFloor();
-    }
+    // I-8: 락 후 새 미노에도 재밀착 불변식 즉시 적용 (기존 SDF ∞ 패턴의 일반화)
+    this.#reapplyInvariant(t);
   }
 
   #isFloorMode(): boolean {
@@ -312,6 +314,44 @@ class InputCoreImpl implements InputCore {
 
   #sdfMs(): number {
     return Math.round(SDF_BASE_MS / this.#handling.sdf);
+  }
+
+  /* ── 재밀착 불변식 (명세 §2, I-7~I-10) ───────────────────── */
+
+  /**
+   * 엔진 상태를 변이시키는 디스패치(회전 3종·swapHold·hardDrop 후 새 미노) 직후 호출한다.
+   * 순서는 수평(moveToWall) → 수직(softDropToFloor), 한쪽의 재적용이 다른 쪽을 다시
+   * 가능하게 하면 둘 다 실패할 때까지 반복한다(고정점, 명세 §2). 각 반복은 미노를 실제로
+   * 전진시키므로 보드 크기에 유계 — 무한 루프 없음. 가드: currentPiece null이면 무동작.
+   */
+  #reapplyInvariant(t: number): void {
+    if (this.#target.currentPiece === null) return;
+    // 한 축은 "반대 축이 방금 전진했을 때만" 재확인한다 — 자기 축 직후의 무의미한
+    // 재확인 호출(가드가 막지 않는 한 항상 no-op)을 피한다. 각 재확인은 실제 전진(true)일
+    // 때만 다음 재확인을 유발하므로 보드 크기에 유계 — 무한 루프 없음.
+    let movedH = this.#reapplyHorizontal(t);
+    let movedV = this.#reapplySoftDrop();
+    while (movedH || movedV) {
+      movedH = movedV ? this.#reapplyHorizontal(t) : false;
+      movedV = movedH ? this.#reapplySoftDrop() : false;
+    }
+  }
+
+  /** ARR 0·DAS 충전 유지 중이면 벽까지 재이동 (I-7). ARR > 0 경로는 불변 (I-10). */
+  #reapplyHorizontal(t: number): boolean {
+    const dir = this.#activeDir;
+    if (dir === null) return false;
+    const { das, arr } = this.#handling;
+    if (arr > 0) return false;
+    if (t < this.#dasStart + das) return false; // DAS 미충전 가드
+    return this.#target.moveToWall(dir);
+  }
+
+  /** SDF ∞(floor mode) 홀드 유지 중이면 바닥까지 재이동 (I-9). */
+  #reapplySoftDrop(): boolean {
+    if (this.#softCount === 0) return false;
+    if (!this.#isFloorMode()) return false;
+    return this.#target.softDropToFloor();
   }
 
   /* ── 내부 유틸 ────────────────────────────────────────── */
