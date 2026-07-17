@@ -1,4 +1,5 @@
 import { fetchMock } from "cloudflare:test";
+import { NOTES_LIMITS, type NotesFile } from "@tetorial/types";
 import { beforeAll, afterEach, describe, it, expect } from "vitest";
 import { sha256HexOfString } from "./hash.js";
 import {
@@ -138,5 +139,72 @@ describe("W-1 노트 쓰기 (PUT /g/:gistId/notes)", () => {
     );
     expect(res.status).toBe(422);
     expect((await jsonBody(res)).code).toBe("limit-exceeded");
+  });
+});
+
+/** 유일 id를 가진 노트 count개짜리 파일 (id 형식 [A-Za-z0-9_-]{8} 준수). */
+function notesFileWith(count: number, overrides: Partial<NotesFile> = {}): NotesFile {
+  const base = makeNotesFile(overrides);
+  const proto = base.notes[0]!;
+  base.notes = Array.from({ length: count }, (_, i) => ({
+    ...proto,
+    id: `n${String(i).padStart(7, "0")}`,
+  }));
+  return base;
+}
+
+describe("M2E 리플레이(=gist) 합산 노트 한도 (#35)", () => {
+  const LIMIT = NOTES_LIMITS.maxNotesPerReplay;
+
+  it("M2E-1 타 클라이언트 파일 합산이 한도에 도달한 gist에 신규 노트 → 거부 (PATCH 미발생)", async () => {
+    const otherFull = JSON.stringify(notesFileWith(LIMIT, { clientId: "otherClient1" }));
+    mockGet(
+      "gFull",
+      gistResponse("gFull", { "meta.json": "{}", "notes-otherClient1.json": otherFull }),
+    );
+    // PATCH 인터셉터 미등록 — 시도하면 disableNetConnect로 실패
+
+    const res = await callWorker(
+      putNotes("gFull", {
+        clientId: SAMPLE_CLIENT_ID,
+        editKey: SAMPLE_EDIT_KEY,
+        file: makeNotesFile(),
+      }),
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("M2E-1 한도 도달 gist에서 노트 수가 늘지 않는 수정은 통과한다", async () => {
+    const existing = JSON.stringify(
+      notesFileWith(LIMIT, { editKeyHash: await sha256HexOfString(SAMPLE_EDIT_KEY) }),
+    );
+    mockGet("gEdit", gistResponse("gEdit", { "meta.json": "{}", [FILENAME]: existing }));
+    mockPatchCapture("gEdit", gistResponse("gEdit", { [FILENAME]: "{}" }), () => {});
+
+    const res = await callWorker(
+      putNotes("gEdit", {
+        clientId: SAMPLE_CLIENT_ID,
+        editKey: SAMPLE_EDIT_KEY,
+        file: notesFileWith(LIMIT), // 자기 파일 교체 — 총합 불변(=한도)
+      }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("M2E-2 초과 거부 응답 계약 — 422 limit-exceeded + detail { limit, total }", async () => {
+    const nine = JSON.stringify(notesFileWith(LIMIT - 1, { clientId: "otherClient1" }));
+    mockGet("gOver", gistResponse("gOver", { "meta.json": "{}", "notes-otherClient1.json": nine }));
+
+    const res = await callWorker(
+      putNotes("gOver", {
+        clientId: SAMPLE_CLIENT_ID,
+        editKey: SAMPLE_EDIT_KEY,
+        file: notesFileWith(2), // 9 + 2 = 11 > 10
+      }),
+    );
+    expect(res.status).toBe(422);
+    const body = await jsonBody(res);
+    expect(body.code).toBe("limit-exceeded");
+    expect((body as { detail?: unknown }).detail).toEqual({ limit: LIMIT, total: LIMIT + 1 });
   });
 });

@@ -68,6 +68,10 @@ Origin: https://<허용 origin>
 - **기존 파일**: `SHA-256(editKey)`가 기존 `editKeyHash`와 일치해야 수정 가능(불일치 403). 일치 시에도
   `editKeyHash`·`clientId`·`createdAt`은 기존 값을 강제 유지, `updatedAt`은 매번 서버 시각.
 - PATCH 페이로드에는 **오직 `notes-<clientId>.json` 하나만** 포함 — replay·meta·타인 노트 격리 (§4-2).
+- **리플레이(=gist) 합산 노트 한도** (#35): 대상 파일을 요청본으로 교체했을 때 gist 내 전체
+  `notes-*.json`의 노트 총합이 `NOTES_LIMITS.maxNotesPerReplay`를 넘으면
+  **422 `limit-exceeded`** + `detail { limit, total }`. 노트 수가 늘지 않는 수정은 한도
+  도달 상태에서도 통과한다 (초과 "생성"만 거부).
 
 ### 목록 조회
 
