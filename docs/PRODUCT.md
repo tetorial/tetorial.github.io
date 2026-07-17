@@ -95,7 +95,7 @@ DAS 기술 훈련 도구
 ## 사용 기술
 - FE
     - framework: Astro
-- deploy: GitHub Pages
+- deploy: Cloudflare Pages (D-19 — GitHub Pages에서 이관)
 - CI/CD: GitHub Actions
 - BE(FaaS): Cloudflare Workers
 - DB: GitHub Gists

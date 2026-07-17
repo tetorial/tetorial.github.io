@@ -10,7 +10,7 @@
 ```
 tetorial/
 ├── apps/
-│   └── web/                    # Astro 앱 (GitHub Pages 배포 대상)
+│   └── web/                    # Astro 앱 (Cloudflare Pages 배포 대상 — D-19)
 │       └── src/
 │           ├── pages/          # 라우트
 │           ├── islands/        # Preact 아일랜드 (인터랙티브 UI)
@@ -89,10 +89,10 @@ types → 의존성 0 (검증기 포함 자급자족)
 ## 6. CI/CD (GitHub Actions)
 
 - **PR 워크플로우** (`ci.yml`): checkout → pnpm 캐시 → `pnpm install --frozen-lockfile` → `pnpm lint && pnpm typecheck && pnpm test`. 필수 통과(브랜치 보호).
-- **웹 배포** (`deploy-web.yml`): main push 시 `apps/web` 빌드 → GitHub Pages 배포(공식 actions/deploy-pages).
-  - **base path 규약 (D-17)**: 배포는 조직 루트 사이트(`tetorial/tetorial.github.io` → `https://tetorial.github.io/` 루트 서빙). `astro.config.mjs`에 `site: "https://tetorial.github.io"` + `base: "/"`(기본값). 내부 링크·에셋의 `import.meta.env.BASE_URL` 헬퍼 경유는 **계속 의무**(향후 하위 경로 이전 대비) — 루트 절대 경로 하드코딩은 여전히 금지.
+- **웹 배포** (`deploy-web.yml`): main push 시 `apps/web` 빌드 → **Cloudflare Pages 직접 업로드**(`wrangler pages deploy`, D-19). 필요 시크릿: `CLOUDFLARE_API_TOKEN`(Pages Edit 권한)·`CLOUDFLARE_ACCOUNT_ID`.
+  - **base path 규약 (D-19)**: 사이트는 `https://tetorial.pages.dev` 루트 서빙. `astro.config.mjs`에 `site: "https://tetorial.pages.dev"` + `base: "/"`(기본값). 내부 링크·에셋의 `import.meta.env.BASE_URL` 헬퍼 경유는 **계속 의무**(향후 하위 경로 이전 대비) — 루트 절대 경로 하드코딩은 여전히 금지.
 - **Worker 배포**: 자동화 워크플로 없음. 수동 `pnpm --filter @tetorial/gist-proxy deploy`(wrangler)로 배포한다. 자동화는 #20(I-1)에서 검토 중. 시크릿은 §7.
-- SPA성 라우트(딥링크 `?gist=...`)는 쿼리 파라미터 기반이므로 Pages의 404 리다이렉트 트릭이 불필요하다 — 경로 기반 동적 라우트를 새로 만들 때는 정적 생성 가능 여부를 먼저 검토한다.
+- 동적 라우트: 경로형 딥링크(`/replays/{id}`)는 `apps/web/public/_redirects`의 200 리라이트로 서빙한다(D-19 — 404 트릭 불필요). 경로 기반 동적 라우트를 새로 만들 때는 정적 생성 가능 여부를 먼저 검토하고, 불가하면 `_redirects`에 등재한다.
 
 ## 7. 시크릿·환경 관리
 

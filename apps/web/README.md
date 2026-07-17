@@ -3,8 +3,9 @@
 Astro 정적 셸 + Preact 아일랜드(D-12)로 구성한 **전 패키지의 조립 계층**. 리플레이 재생·시뮬레이터·노트
 저작을 단일 화면에서 잇는다. 다른 모듈이 "무엇"이라면 이 앱은 "어디서 어떻게 이어지는가"다.
 
-- 배포: GitHub Pages 조직 루트 사이트(D-18) — `https://tetorial.github.io/`. `astro.config.mjs`의
-  `site="https://tetorial.github.io"` + `base="/"`. 내부 링크·에셋은 `withBase` 헬퍼 경유 의무.
+- 배포: Cloudflare Pages 직접 업로드(D-19) — `https://tetorial.pages.dev/`. `astro.config.mjs`의
+  `site="https://tetorial.pages.dev"` + `base="/"`. 내부 링크·에셋은 `withBase` 헬퍼 경유 의무.
+  경로형 딥링크(`/replays/{id}`)는 `public/_redirects`의 200 리라이트로 서빙.
 - 런타임 의존성(승인): `astro`·`@astrojs/preact`·`preact`·`pako`·`zod`(응답 검증, 명세 §4). 워크스페이스 패키지 전부.
 
 ## 구조

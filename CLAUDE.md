@@ -20,7 +20,7 @@ pnpm --filter @tetorial/web e2e       # Playwright E2E
 pnpm --filter @tetorial/gist-proxy deploy   # Worker 배포 (wrangler)
 ```
 
-CI(`.github/workflows/ci.yml`): lint · typecheck · test + `node tools/check-acceptance.mjs`(수용 기준 ID ↔ 테스트 대조) + 웹 E2E. 배포(`deploy-web.yml`): main push 시 apps/web → GitHub Pages. 워커 배포 워크플로는 없음(수동 deploy 스크립트만 확인 — 자동화 여부 미확인).
+CI(`.github/workflows/ci.yml`): lint · typecheck · test + `node tools/check-acceptance.mjs`(수용 기준 ID ↔ 테스트 대조) + 웹 E2E. 배포(`deploy-web.yml`): main push 시 apps/web 빌드 → Cloudflare Pages 직접 업로드(`https://tetorial.pages.dev`, D-19). 워커 배포 워크플로는 없음(수동 deploy 스크립트, 자동화는 #20).
 
 ## 패키지 구조
 
