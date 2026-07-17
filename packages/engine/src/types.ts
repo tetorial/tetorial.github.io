@@ -7,8 +7,8 @@ export type Rot = 0 | 1 | 2 | 3;
 /** 보드 셀. notes 스키마 행 문자와 동일 ("_"=빈 칸, "G"=쓰레기, "D"=더미 — 물리는 G와 동일) */
 export type Cell = "_" | "G" | "D" | PieceType;
 
-/** 보드 절대 좌표 (x: 0=왼쪽, y: 0=최하단) */
-export type CellPos = { x: number; y: number };
+/** 보드 절대 좌표 — 정의는 @tetorial/types (전 모듈 공통 규약) */
+export type { CellPos } from "@tetorial/types";
 
 /** v1 지원 스핀 판정 모드. 이외 tetr.io 모드는 v2 (명세 §10) */
 export type SpinBonusMode = "T-spins" | "all-mini+";

@@ -24,3 +24,6 @@ export {
 
 export type { MetaFile } from "./meta.js";
 export { metaFileSchema, META_LIMITS } from "./meta.js";
+
+// 전 모듈 공통 좌표 규약 — 3중 정의 승격 (#12, M2C-1)
+export type { CellPos } from "./shared.js";
