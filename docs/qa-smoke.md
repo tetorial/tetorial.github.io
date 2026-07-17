@@ -5,10 +5,10 @@
 
 ## 0. 사전 조건
 
-- [ ] `PUBLIC_WORKER_URL` 저장소 변수 + `CLOUDFLARE_API_TOKEN`·`CLOUDFLARE_ACCOUNT_ID` 시크릿 존재
-- [ ] Deploy Web green (Cloudflare Pages 직접 업로드 — D-19) + `https://tetorial.pages.dev` 접속
-- [ ] Worker healthz 200 (`/healthz`) — 새 오리진이 `ALLOWED_ORIGINS`에 포함
-- [ ] Cloudflare rate limit rule 활성 (쓰기 경로 — `starts_with(path,"/g") and method in {POST,PUT}`, 2회/10초)
+인프라 사실은 [docs/INFRA.md](INFRA.md)가 진실이다. 여기서는 살아있는지만 확인한다:
+
+- [ ] Deploy Web green + `https://tetorial.pages.dev` 접속
+- [ ] Worker healthz 200 (`/healthz`)
 
 ## 1. 열람·재생 (업로드 없음)
 

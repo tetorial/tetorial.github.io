@@ -1,6 +1,6 @@
-# Tetorial 엔진 부록: 형상·킥·스핀·카운터 규범 (`docs/appendix-engine-rules.md`) — v1
+# Tetorial 엔진 부록: 형상·킥·스핀·카운터 규범 (`docs/appendix-engine-rules.md`)
 
-> 상태: v1 확정 · 대상: engine 에이전트 (명세 §5·§8의 "부록"이 이 문서)
+> 상태: 확정 · 대상: engine 에이전트 (명세 §5·§8의 "부록"이 이 문서)
 > 원천: @haelp/teto v4.2.7 (halp1/triangle, MIT) 소스 원문. **이 문서는 해석이 아니라 전사(轉寫)다** — 수식·알고리즘을 원문 그대로 옮겼고, 모호하면 원문(파일·행 표기)을 직접 확인한다. 최종 심판은 골든 테스트(E-3·E-4·E-5): 이 문서와 triangle 실행 결과가 다르면 **triangle이 이긴다.**
 
 동봉 데이터: `packages/engine/src/data/triangle-data.json` — `kicks`(SRS·SRS+ 전체), `cornerTable`, `spinbonusRules`(T-spins·all-mini+), `tetrominoes`(7미노). 값 무수정 원본 복제. 엔진 소스에 그대로 임포트하고 **손으로 옮겨 적지 않는다.**
@@ -48,13 +48,15 @@ rotation = kickTable.spawn_rotation[piece] ?? 0                        // SRS·S
 
 ## 5. 스핀 판정 (원문: #detectSpin · #detectSpinFromCorners · #isTSpinKick · isAllSpinPosition)
 
-### 5-1. 모드 분기 (v1 지원 2종)
+### 5-1. 모드 분기 (지원 2종)
 
 ```
 "T-spins":   피스가 t일 때만 코너 판정(§5-2) 실행 → 결과 또는 "none"
 "all-mini+": maxSpin( t의 코너 판정 결과,  immobility(§5-4)이면 "mini" 아니면 "none" )
              (maxSpin 서열: "normal" > "mini" > "none")
 ```
+
+그 외 `spinbonuses` 모드(`all-spin` 등)는 **미지원** — 검증 fixture가 확보된 모드만 지원을 주장한다. 미지원 룰셋의 목록화·업로드 검증·사용자 안내는 #13.
 
 ### 5-2. 코너 판정 (T스핀)
 
@@ -97,7 +99,7 @@ lines == 0 (클리어 없는 락):
 ```
 
 - 초기값 둘 다 −1 (없음).
-- 원문의 퍼펙트 클리어 b2b 보너스(`pc.b2b`)는 리플레이 기본 옵션이 0이므로 **v1 미구현** — 엔진 명세 §10 스코프 아웃에 준함.
+- 원문의 퍼펙트 클리어 b2b 보너스(`pc.b2b`)는 **미지원** — 스코프 아웃 사유: 리플레이 기본 옵션이 0이라 실물 리플레이에서 관측되지 않는다.
 
 ## 7. 골든 테스트 연결 (수용 기준 대응)
 

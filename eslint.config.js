@@ -60,7 +60,6 @@ export default tseslint.config(
       "**/node_modules/",
       "**/coverage/",
       "fixtures/",
-      "tools/spike/", // 스파이크 산출 코드 — 레거시 무수정 보존
       ".worktrees/", // 병렬 세션용 리포 내부 worktree (D-17)
       // astro 빌드·E2E 산출물 (apps/web QUESTIONS Q3 — 로컬 빌드 후 lint 실패 방지)
       "apps/web/dist/",
