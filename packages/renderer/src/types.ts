@@ -1,9 +1,9 @@
 // @tetorial/renderer 공개 타입 — 명세 §2·§4-3의 표면 정의.
 // 렌더러는 "무엇을 그릴지"를 매 호출 인자로만 받는 무상태 그리기 계층이다.
-import type { BoardRows, PageState, PieceType } from "@tetorial/types";
+import type { BoardRows, CellPos, PageState, PieceType } from "@tetorial/types";
 
-/** 논리 셀 좌표. x 0(좌)→9(우), y 0(최하단)→위 (전 모듈 공통 규약, 명세 §3). */
-export type CellPos = { x: number; y: number };
+/** 논리 셀 좌표 — 정의는 @tetorial/types (전 모듈 공통 규약) */
+export type { CellPos } from "@tetorial/types";
 
 /**
  * 테마 = 셀 색 맵(행 문자 → 색) + 배경·격자·고스트·하이라이트 색 (명세 §4-3).

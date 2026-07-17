@@ -17,6 +17,7 @@ Worker(gist-proxy)와 클라이언트가 공유한다. 런타임 의존성은 `z
 | `MetaFile`                                                                        | 타입 | meta 스키마 §2 자구 그대로                           |
 | `metaFileSchema`                                                                  | zod  | `MetaFile` 검증기 (§3 규약 + §5-1 한도·ttr 교차 검증 포함) |
 | `META_LIMITS`                                                                     | 상수 | meta §5 한도 수치 (title·description·replayBody)     |
+| `CellPos`                                                                         | 타입 | 보드 논리 셀 좌표 `{ x, y }` — 전 모듈 공통 규약 (x 0=왼쪽, y 0=최하단). engine·renderer·replay-tetrio 3중 정의 승격 (#12) |
 
 ## 사용 예시
 

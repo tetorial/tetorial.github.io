@@ -5,13 +5,13 @@
 import { Engine } from "@haelp/teto/engine";
 import type { EngineSnapshot } from "@haelp/teto/engine";
 import { captureSnapshot, type CaptureResult } from "@tetorial/adapter-tetrio";
-import type { BoardRows, PieceType } from "@tetorial/types";
+import type { BoardRows, CellPos, PieceType } from "@tetorial/types";
 import { toBoardRows, pieceChar } from "./board-view.js";
 import { convert, splitFrames, type TetrioFrame, type TetrioRoundOptions } from "./convert.js";
 import type { ReplayDoc } from "./parse.js";
 
-/** 논리 셀 좌표. x 0(좌)→9(우), y 0(최하단)→위 (전 모듈 공통 규약, renderer.CellPos와 동형). */
-export type CellPos = { x: number; y: number };
+/** 논리 셀 좌표 — 정의는 @tetorial/types (전 모듈 공통 규약) */
+export type { CellPos } from "@tetorial/types";
 
 /** 렌더러가 매 프레임 소비하는 상태 뷰 (§5). */
 export interface PlaybackView {

@@ -13,3 +13,9 @@ export const isoUtcSchema = z.iso.datetime();
 export function codePointLength(s: string): number {
   return [...s].length;
 }
+
+/**
+ * 보드 논리 셀 좌표 — 전 모듈 공통 규약: x 0(왼쪽)→오른쪽, y 0(최하단)→위.
+ * engine·renderer·replay-tetrio에 3중 정의돼 있던 것을 승격 (#12, M2C-1).
+ */
+export type CellPos = { x: number; y: number };
