@@ -8,8 +8,8 @@ import type {
   InputCore,
   KeyBindings,
 } from "@tetorial/input";
-import { createAuthoringSession, restoreAuthoringSession } from "@tetorial/sim";
-import type { AuthoringSession, SerializedDraft } from "@tetorial/sim";
+import { createAuthoringSession } from "@tetorial/sim";
+import type { AuthoringSession } from "@tetorial/sim";
 import type { Note, Origin, Snapshot } from "@tetorial/types";
 import { generateNoteId } from "./note-id.js";
 
@@ -69,15 +69,6 @@ export function createSimulator(params: CreateSimulatorParams): SimulatorControl
       ? { existing: params.init.existing }
       : { ...params.init, noteId: generateNoteId() };
   const session = createAuthoringSession(init);
-  return wireSimulator(session, params);
-}
-
-/** 드래프트에서 복원한 저작 세션으로 시뮬레이터를 만든다(AW-6). */
-export function restoreSimulator(
-  draft: SerializedDraft,
-  params: { handling: HandlingConfig; keys: KeyBindings; onLockError?: (e: unknown) => void },
-): SimulatorController {
-  const session = restoreAuthoringSession(draft);
   return wireSimulator(session, params);
 }
 

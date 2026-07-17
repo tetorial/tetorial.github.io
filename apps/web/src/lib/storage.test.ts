@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Storage, MemoryStorage } from "./storage.js";
 
-// storage 유틸 — clientId·editKey·draft 수명주기. AW-6/AW-7/AW-8의 영속 기반.
+// storage 유틸 — clientId·editKey 수명주기. AW-7/AW-8의 영속 기반.
 describe("storage clientId", () => {
   it("최초 조회 시 [A-Za-z0-9_-]{12} 생성·보관, 재조회 시 동일", () => {
     const s = new Storage(new MemoryStorage());
@@ -45,25 +45,26 @@ describe("AW-7 editKey 수명주기", () => {
   });
 });
 
-describe("storage 드래프트·설정 왕복", () => {
-  it("드래프트 저장·복원·삭제", () => {
-    const s = new Storage(new MemoryStorage());
-    const draft = { v: 1, foo: "bar" } as never;
-    s.setDraft("local", draft);
-    expect(s.getDraft("local")).toEqual({ v: 1, foo: "bar" });
-    s.clearDraft("local");
-    expect(s.getDraft("local")).toBeNull();
-  });
-
+describe("storage 설정 왕복·방어", () => {
   it("손상된 JSON은 null로 방어", () => {
     const backend = new MemoryStorage();
-    backend.setItem("tetorial:draft:local", "{not json");
-    expect(new Storage(backend).getDraft("local")).toBeNull();
+    backend.setItem("tetorial:handling", "{not json");
+    expect(new Storage(backend).getHandling()).toBeNull();
   });
 
   it("백엔드 부재(null)에서도 throw하지 않는다", () => {
     const s = new Storage(null);
     expect(() => s.getOrCreateClientId()).not.toThrow();
-    expect(s.getDraft("local")).toBeNull();
+    expect(s.getHandling()).toBeNull();
+  });
+});
+
+// 드래프트 영속 사슬 제거(m4a §2, #42) 후 잔재 부재를 고정한다.
+describe("AW-19 웹 드래프트 잔재 소멸 — storage", () => {
+  it("AW-19 storage 공개 표면에 getDraft/setDraft/clearDraft가 없다", () => {
+    const s = new Storage(new MemoryStorage());
+    expect("getDraft" in s).toBe(false);
+    expect("setDraft" in s).toBe(false);
+    expect("clearDraft" in s).toBe(false);
   });
 });

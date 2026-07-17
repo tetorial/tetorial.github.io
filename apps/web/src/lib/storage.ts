@@ -1,7 +1,6 @@
 // 클라이언트 storage 유틸 — localStorage 직접 접근 금지(conventions §5-6). 키는 tetorial: 네임스페이스(§7).
 // 백엔드는 주입 가능(테스트에서 fake 주입) — 기본은 globalThis.localStorage.
 import type { HandlingConfig, KeyBindings } from "@tetorial/input";
-import type { SerializedDraft } from "@tetorial/sim";
 
 /** 최소 Storage 계약(테스트 fake·localStorage 공통). */
 export interface StorageBackend {
@@ -17,7 +16,6 @@ const K = {
   keys: `${NS}keys`,
   theme: `${NS}theme`,
   editKey: (gistId: string) => `${NS}editKey:${gistId}`,
-  draft: (scope: string) => `${NS}draft:${scope}`,
 } as const;
 
 export type ThemePref = "light" | "dark" | "system";
@@ -139,19 +137,6 @@ export class Storage {
   }
   setTheme(theme: ThemePref): void {
     this.#set(K.theme, theme);
-  }
-
-  /* ── 드래프트(sim SerializedDraft) ─────────────────────────── */
-
-  /** 드래프트 범위 키: gist 열람 중이면 gistId, 로컬 파일이면 "local". */
-  getDraft(scope: string): SerializedDraft | null {
-    return parseJson<SerializedDraft>(this.#get(K.draft(scope)));
-  }
-  setDraft(scope: string, draft: SerializedDraft): void {
-    this.#set(K.draft(scope), JSON.stringify(draft));
-  }
-  clearDraft(scope: string): void {
-    this.#remove(K.draft(scope));
   }
 }
 

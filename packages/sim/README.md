@@ -10,7 +10,6 @@
 | 심볼                                   | 역할                                                                                                                                                                                                                                                                                                        |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `createAuthoringSession(init)`         | 저작 세션 생성 — 판별 유니온. 신규 `{ origin, snapshot, noteId, existingNoteIds? }`: 호출자가 id를 값으로 주입, 형식(`[A-Za-z0-9_-]{8}`) 불일치·`existingNoteIds` 충돌 시 `InvalidNoteIdError` throw. 재편집 `{ existing: Note }`: id·origin·snapshot 전부 existing에서, 어떤 대조·검증도 없음 (sim-m1b §3) |
-| `restoreAuthoringSession(draft)`       | localStorage 드래프트 복원 (명세의 `AuthoringSession.restore` 대응)                                                                                                                                                                                                                                         |
 | `createViewerSession(note)`            | 열람 세션 (페이지 순차 열람·딥링크, 수정 불가)                                                                                                                                                                                                                                                              |
 | `deriveSnapshotFromPage(note, pageId)` | "이 페이지에서 시뮬레이션" 파생 진입. 반환 `origin`은 원본 노트 origin의 깊은 복사 (D-8)                                                                                                                                                                                                                    |
 | `assembleNotesFile(args)`              | 업로드용 NotesFile 조립 (교체/추가 + 한도 사전 검증)                                                                                                                                                                                                                                                        |
@@ -73,15 +72,6 @@ if (result.ok) sendToWorker(result.file);
 else reportLimits(result.violations); // limit-exceeded 사전 차단
 ```
 
-## 드래프트 보존
-
-```typescript
-// 저장 (apps/web이 tetorial:draft:<gistId>에 기록)
-localStorage.setItem(key, JSON.stringify(session.serialize()));
-// 복원 — 작업 상태(페이지로 안 만든 보드)·언두 이력까지 무손실
-const restored = restoreAuthoringSession(JSON.parse(localStorage.getItem(key)!));
-```
-
 ## 열람 · 파생 진입
 
 ```typescript
@@ -107,4 +97,4 @@ else createAuthoringSession({ ...derived, noteId: freshNoteId });
 
 ## 수용 기준
 
-테스트 이름에 기준 ID를 명시한다 (`src/*.test.ts`): S-1 캡처 정합 · S-2 불러오기 규범(3경로) · S-3 언두 매트릭스 · S-4 드래프트 왕복 · S-5 파생 진입 · S-6 조립·병합 · S-7 A/B 통합 · S-8 오버레이 경로 · M1b-1/2 파생 origin 복사 · M1b-3 id 값 주입 · M1b-4 입구 방어 (M1b-5 웹 배선은 `apps/web`).
+테스트 이름에 기준 ID를 명시한다 (`src/*.test.ts`): S-1 캡처 정합 · S-2 불러오기 규범(3경로) · S-3 언두 매트릭스 · S-5 파생 진입 · S-6 조립·병합 · S-7 A/B 통합 · S-8 오버레이 경로 · S-9 드래프트 API 소멸 · M1b-1/2 파생 origin 복사 · M1b-3 id 값 주입 · M1b-4 입구 방어 (M1b-5 웹 배선은 `apps/web`).
