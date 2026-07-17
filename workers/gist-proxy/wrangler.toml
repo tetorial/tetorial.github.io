@@ -7,7 +7,6 @@ compatibility_date = "2024-09-23"
 
 [vars]
 # 프로덕션 배포 시 대시보드/CI에서 실제 값으로 덮어쓴다. 여기 값은 개발 기본값.
-# 전환기 병기(D-19): 신 사이트 검증 후 구 오리진(tetorial.github.io) 제거. 프로덕션 진실은 대시보드.
-ALLOWED_ORIGINS = "https://tetorial.pages.dev,https://tetorial.github.io,http://localhost:4321"
+ALLOWED_ORIGINS = "https://tetorial.pages.dev,http://localhost:4321"
 WRITE_ENABLED = "true"
 GIST_OWNER = "tetris-replay"
