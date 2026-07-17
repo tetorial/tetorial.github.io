@@ -114,14 +114,15 @@ test.describe("M1d-1 경로형 딥링크 (인코딩 id)", () => {
 test.describe("M1d-2·M1d-3 note 한정형 + fragment 서수", () => {
   test.skip(!hasTTRM, "fixture 리플레이 부재");
 
+  // 뷰어는 m3b AW-12에서 보드 렌더 뷰어로 교체됐다(페이지 목록 → prev/next 이동) — 딥링크
+  // 의미론(D-20)은 그대로이므로 현재 페이지 서수를 페이지 라벨에서 관측한다.
   test("M1d-3 ?note=<clientId>.<noteId>#p2 → 뷰어가 2번째 페이지를 연다", async ({ page }) => {
     const seg = encodeReplayId(HEX_ID);
     await mockGist(page, HEX_ID, true);
     await page.goto(`/replays/${seg}?note=${CLIENT_ID}.${NOTE_ID}#p2`);
     await expect(page.getByTestId("viewer-modal")).toBeVisible({ timeout: 15_000 });
-    const pages = page.getByTestId("vm-page");
-    await expect(pages).toHaveCount(2);
-    await expect(pages.nth(1)).toHaveAttribute("aria-current", "true");
+    await expect(page.getByTestId("vm-page-label")).toContainText("페이지 2 / 2");
+    await expect(page.getByTestId("viewer-modal").getByTestId("board-canvas")).toBeVisible();
   });
 
   test("M1d-3 범위 밖 fragment(#p9)는 에러가 아니라 첫 페이지", async ({ page }) => {
@@ -129,7 +130,7 @@ test.describe("M1d-2·M1d-3 note 한정형 + fragment 서수", () => {
     await mockGist(page, HEX_ID, true);
     await page.goto(`/replays/${seg}?note=${CLIENT_ID}.${NOTE_ID}#p9`);
     await expect(page.getByTestId("viewer-modal")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("vm-page").nth(0)).toHaveAttribute("aria-current", "true");
+    await expect(page.getByTestId("vm-page-label")).toContainText("페이지 1 / 2");
   });
 });
 
@@ -181,8 +182,10 @@ test.describe("M1d-7 키 기본값", () => {
     await enterSim(page);
     await page.keyboard.press("ShiftLeft");
     await page.waitForTimeout(100);
-    // 홀드 성공 = hold 표시 + 잠김 (PieceBar — 홀드 액션이 발화됐다는 유일한 텍스트 신호).
-    await expect(page.getByTestId("sim-hold")).toContainText("(잠김)");
+    // 홀드 성공 = hold 표시 + 잠김 (PieceBar — 홀드 액션이 발화됐다는 신호).
+    // AW-18에서 표기가 프리뷰 캔버스로 바뀌어 상태는 data 속성으로 관측한다.
+    await expect(page.getByTestId("sim-hold")).toHaveAttribute("data-locked", "true");
+    await expect(page.getByTestId("sim-hold")).toHaveAttribute("data-piece", /[IJLOSTZ]/);
   });
 
   test("M1d-7 시계 회전 기본키 ArrowUp이 동작한다", async ({ page }) => {

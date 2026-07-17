@@ -3,11 +3,21 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "preact/hooks";
 import { supportReport } from "@tetorial/replay-tetrio";
 import BoardCanvas from "./BoardCanvas.tsx";
+import PiecePreview from "./PiecePreview.tsx";
+import NoteViewer from "./NoteViewer.tsx";
 import SettingsPanel from "./SettingsPanel.tsx";
-import SimulatorPanel from "./SimulatorPanel.tsx";
+import SimulatorPanel, { type SimEntry } from "./SimulatorPanel.tsx";
 import { withBase } from "../lib/base-url.ts";
-import { parseDeepLink, buildDeepLink, pageIndexFromOrdinal } from "../lib/deeplink.ts";
+import { parseDeepLink, buildDeepLink } from "../lib/deeplink.ts";
 import { noteLimitReason } from "../lib/note-limit.ts";
+import {
+  collectNote,
+  hasUnuploaded,
+  removeCollected,
+  uploadCollectedNotes,
+} from "../lib/note-collection.ts";
+import { canEditNote } from "../lib/note-viewer.ts";
+import { holdPreview, nextPreviewSlice } from "../lib/piece-preview.ts";
 import { takePendingReplay } from "../lib/handoff.ts";
 import { openLocalReplay, openGistReplay, type LoadedReplay } from "../lib/open-replay.ts";
 import {
@@ -20,7 +30,12 @@ import { WorkerError } from "../lib/worker-client.ts";
 import { createPlaybackSession, type PlaybackSession } from "../lib/playback-session.ts";
 import { playbackFrame } from "../lib/view-frame.ts";
 import { collectMarkers, clusterMarkers, markerRatio, type NoteFileRef } from "../lib/markers.ts";
-import { flattenSidebar, resolveNoteCandidates, type SidebarEntry } from "../lib/notes-loading.ts";
+import {
+  applyUploadedFile,
+  flattenSidebar,
+  resolveNoteCandidates,
+  type SidebarEntry,
+} from "../lib/notes-loading.ts";
 import { toDisplayError, type DisplayError } from "../lib/errors.ts";
 import { Storage } from "../lib/storage.ts";
 import { loadSettings, resetSettings } from "../lib/settings.ts";
@@ -29,7 +44,6 @@ import { getWorkerClient } from "../lib/worker-client-factory.ts";
 import type { HandlingConfig, KeyBindings } from "@tetorial/input";
 import type { ThemePref } from "../lib/storage.ts";
 import type { Note } from "@tetorial/types";
-import type { CaptureResult } from "@tetorial/adapter-tetrio";
 
 type Phase = "empty" | "loading" | "error" | "loaded";
 
@@ -52,7 +66,15 @@ export default function ReplayIsland() {
   );
   const [theme, setThemeState] = useState<ThemePref>(() => storage.getTheme());
   const [showSettings, setShowSettings] = useState(false);
-  const [branchData, setBranchData] = useState<{ result: CaptureResult; frame: number } | null>(null);
+  const [simEntry, setSimEntry] = useState<SimEntry | null>(null);
+  /** 노트 수집함 — 리플레이 단위 메모리 전용. 영속화 없음(m3b §2 — 소유자 결정 2026-07-17). */
+  const [collected, setCollected] = useState<Note[]>([]);
+  // 업로드 결과 표시는 수집함 **밖**에 산다 — 성공하면 수집함이 비어 사라지므로, 안에 두면
+  // 결과 문구가 함께 증발한다(AW-11의 "성공 문구" 요구를 무음으로 만든다).
+  const [uploading, setUploading] = useState(false);
+  const uploadingRef = useRef(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [editKeyNotice, setEditKeyNotice] = useState(false);
   const [viewerNote, setViewerNote] = useState<{
     clientId: string;
     note: Note;
@@ -126,8 +148,22 @@ export default function ReplayIsland() {
     });
   };
 
+  // 미업로드 수집 노트가 있으면 이탈 시 경고만 한다(AW-15) — 수집함은 메모리 전용이라
+  // 이탈하면 사라진다. 영속화(드래프트 저장)는 명시적 범위 밖(소유자 결정 2026-07-17).
+  useEffect(() => {
+    if (!hasUnuploaded(collected)) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent): void => {
+      // preventDefault가 현행 규범이지만 일부 브라우저는 returnValue 설정까지 봐야 경고를 띄운다(MDN).
+      // 문구는 브라우저가 정한다 — 커스텀 문자열은 무시된다.
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [collected]);
+
   // ── 매 프레임 재렌더 루프 (재생 중 보드·스크러버 갱신) ──────────
-  const simActive = branchData !== null;
+  const simActive = simEntry !== null;
   useEffect(() => {
     if (phase !== "loaded" || simActive) return;
     let raf = 0;
@@ -154,6 +190,60 @@ export default function ReplayIsland() {
     setShowUpload(false);
     setShareGistId(gistId);
     history.replaceState({}, "", buildDeepLink({ gistId }));
+  };
+
+  // ── 수집함 → 묶음 업로드 (AW-15·16·17 · 반영은 AW-11) ─────────
+  const doUploadCollected = async (): Promise<void> => {
+    const loaded = loadedRef.current;
+    if (!loaded || typeof loaded.source === "string") {
+      setUploadStatus("먼저 리플레이를 업로드해야 노트를 공유할 수 있습니다.");
+      return;
+    }
+    // 버튼 disabled는 다음 렌더에야 걸린다 — 같은 틱의 연타가 PUT을 두 번 쏘는 것을 ref로 막는다
+    // (공유 Gist에 대한 중복 쓰기 방지 — "단일 PUT"이 이 흐름의 계약이다).
+    if (uploadingRef.current) return;
+    uploadingRef.current = true;
+    setUploading(true);
+    setUploadStatus(null);
+    const clientId = storage.getOrCreateClientId();
+    const myFile = loaded.notesFiles.find((f) => f.clientId === clientId);
+    try {
+      const res = await uploadCollectedNotes({
+        worker: getWorkerClient(),
+        storage,
+        gistId: loaded.source.gistId,
+        clientId,
+        notes: collected,
+        files: loaded.notesFiles,
+        ...(myFile?.authorName ? { authorName: myFile.authorName } : {}),
+      });
+      if (!res.ok) {
+        setUploadStatus(
+          res.code === "empty"
+            ? "올릴 노트가 없습니다."
+            : `한도 초과로 업로드하지 않았습니다: ${res.violations.map((v) => v.message).join("; ")}`,
+        );
+        return;
+      }
+      // 재로드 없이 사이드바 반영(AW-11) — 올린 파일을 그대로 열람 상태에 넣는다.
+      loaded.notesFiles = applyUploadedFile(loaded.notesFiles, res.uploaded);
+      const count = res.uploaded.notes.length;
+      setCollected([]); // 업로드 성공 — 수집함을 비운다(이탈 경고 해제)
+      if (res.editKeyCreated) setEditKeyNotice(true);
+      // 문구는 실제 일어난 일만 서술한다(AW-11 — "사이드바가 갱신되었습니다" 거짓 표기 제거).
+      setUploadStatus(`노트 ${count}개를 올렸습니다 (내 노트 파일 1개로 저장).`);
+    } catch (e) {
+      if (e instanceof WorkerError) {
+        // 403(editKey 불일치) 등은 §6 매핑으로 정직하게 표기한다(AW-14). 수집함은 유지 — 실패했으므로.
+        const d = toDisplayError({ source: "worker", status: e.status, body: e.body, retryAfterMs: e.retryAfterMs });
+        setUploadStatus(d.detailText ? `${d.title} — ${d.detailText}` : d.title);
+      } else {
+        setUploadStatus("업로드에 실패했습니다.");
+      }
+    } finally {
+      uploadingRef.current = false;
+      setUploading(false);
+    }
   };
 
   // ── 딥링크·마커 → 뷰어 ────────────────────────────────────────
@@ -251,11 +341,33 @@ export default function ReplayIsland() {
               alert(`분기 불가: ${result.reason}`);
               return;
             }
-            setBranchData({ result, frame: session.frame });
+            setSimEntry({ kind: "branch", branch: result, frame: session.frame, round, player });
           }}
           hasGist={typeof loaded.source !== "string"}
           limitReason={noteLimitReason(loaded.notesFiles)}
         />
+
+        {collected.length > 0 && (
+          <CollectedNotesBar
+            collected={collected}
+            hasGist={typeof loaded.source !== "string"}
+            busy={uploading}
+            onRemove={(noteId) => setCollected((c) => removeCollected(c, noteId))}
+            onUpload={() => void doUploadCollected()}
+          />
+        )}
+
+        {/* 업로드 결과는 수집함 밖 — 성공 시 수집함이 사라져도 남는다(AW-11). */}
+        {uploadStatus && (
+          <p class="upload-status" role="status" data-testid="collected-status">
+            {uploadStatus}
+          </p>
+        )}
+        {editKeyNotice && (
+          <p class="upload-notice" data-testid="editkey-notice">
+            편집 키가 이 브라우저에 저장되었습니다. 잃어버리면 이 노트를 수정할 수 없습니다.
+          </p>
+        )}
       </div>
 
       <aside class="replay-side">
@@ -303,21 +415,23 @@ export default function ReplayIsland() {
         )}
       </aside>
 
-      {branchData && loaded && (
+      {simEntry && (
         <SimulatorPanel
           storage={storage}
           loaded={loaded}
-          round={round}
-          player={player}
-          branch={branchData.result}
-          frame={branchData.frame}
+          entry={simEntry}
+          collectedNoteIds={collected.map((n) => n.id)}
           settings={settings}
+          onCollect={(note) => {
+            setCollected((c) => collectNote(c, note));
+            setUploadStatus(null); // 새로 수집했다 — 지난 업로드 결과 문구는 더 이상 현재 상태가 아니다
+          }}
           onExit={() => {
-            const branchFrame = branchData.frame;
-            setBranchData(null);
+            const entry = simEntry;
+            setSimEntry(null);
             buildSession(loaded, round, player);
-            // 새 세션은 프레임 0에서 시작하므로 분기 지점으로 되돌린다(§3-D "분기 프레임 복귀", 결함3).
-            sessionRef.current?.seek(branchFrame);
+            // 분기 진입이었다면 새 세션(프레임 0)을 분기 지점으로 되돌린다(§3-D "분기 프레임 복귀", 결함3).
+            if (entry.kind === "branch") sessionRef.current?.seek(entry.frame);
           }}
         />
       )}
@@ -332,11 +446,23 @@ export default function ReplayIsland() {
       )}
 
       {viewerNote && (
-        <ViewerModal
+        <NoteViewer
           note={viewerNote.note}
           clientId={viewerNote.clientId}
           gistId={typeof loaded.source === "string" ? null : loaded.source.gistId}
           initialPage={viewerNote.page}
+          {...(canEditNote(
+            { isMine: myClientId !== null && viewerNote.clientId === myClientId },
+            typeof loaded.source !== "string",
+          )
+            ? {
+                onEdit: (): void => {
+                  // 편집 결과도 수집함을 거쳐 올라간다 — 업로드 경로는 하나다(AW-13·§2).
+                  setSimEntry({ kind: "existing", note: viewerNote.note });
+                  setViewerNote(null);
+                },
+              }
+            : {})}
           onClose={() => setViewerNote(null)}
         />
       )}
@@ -526,12 +652,34 @@ function PlaybackControls({
   );
 }
 
+/** 재생 화면 홀드·넥스트 (m3b AW-18 — renderer 프리뷰 배선. 표시 계산은 lib/piece-preview). */
 function PlaybackStats({ session }: { session: PlaybackSession }) {
   const v = session.view;
+  const hold = holdPreview(v.hold);
+  const next = nextPreviewSlice(v.next);
   return (
     <div class="pb-stats" data-testid="pb-stats">
-      <span>다음: {v.next.slice(0, 5).join(" ")}</span>
-      <span>홀드: {v.hold.piece ?? "—"}</span>
+      <span class="piece-slot" data-testid="pb-next" data-next={next.join("")}>
+        다음
+        {next.length > 0 ? (
+          next.map((p, i) => <PiecePreview piece={p} size={16} label={`다음 ${i + 1}번째 ${p}`} />)
+        ) : (
+          <span class="piece-empty">—</span>
+        )}
+      </span>
+      <span
+        class="piece-slot"
+        data-testid="pb-hold"
+        data-piece={hold?.piece ?? ""}
+        data-locked={hold?.locked ? "true" : "false"}
+      >
+        홀드
+        {hold ? (
+          <PiecePreview piece={hold.piece} size={16} dimmed={hold.locked} label={`홀드 ${hold.piece}`} />
+        ) : (
+          <span class="piece-empty">—</span>
+        )}
+      </span>
       <span>B2B: {v.stats.b2b}</span>
       <span>combo: {v.stats.combo}</span>
       {v.pendingGarbage > 0 && <span class="warn">대기 쓰레기: {v.pendingGarbage}</span>}
@@ -599,69 +747,48 @@ function Sidebar({
   );
 }
 
-function ViewerModal({
-  note,
-  clientId,
-  gistId,
-  initialPage,
-  onClose,
+/**
+ * 노트 수집함 (m3b §2 — AW-15·16·17). 시뮬레이터 **밖**의 업로드 지점이다.
+ * 수집 노트 전부를 파일 하나로 조립해 단일 PUT으로 올린다 — 노트 단위 업로드는 없다.
+ */
+function CollectedNotesBar({
+  collected,
+  hasGist,
+  busy,
+  onRemove,
+  onUpload,
 }: {
-  note: Note;
-  clientId: string;
-  gistId: string | null;
-  /** 딥링크 fragment #p<n>의 1-기준 서수. best-effort — 부재·범위 밖이면 첫 페이지(M1d-3). */
-  initialPage?: number | null;
-  onClose: () => void;
+  collected: Note[];
+  hasGist: boolean;
+  busy: boolean;
+  onRemove: (noteId: string) => void;
+  onUpload: () => void;
 }) {
-  const [pageIndex, setPageIndex] = useState(() =>
-    pageIndexFromOrdinal(initialPage ?? null, note.pages.length),
-  );
-  const copyLink = (): void => {
-    if (!gistId) return;
-    // 발신 규범(M1d-2): note는 항상 <clientId>.<noteId> 한정형, 페이지는 서수 fragment(§2).
-    const link = buildDeepLink({
-      gistId,
-      note: { clientId, noteId: note.id },
-      page: pageIndex + 1,
-    });
-    void navigator.clipboard?.writeText(`${window.location.origin}${link}`);
-  };
   return (
-    <div class="viewer-modal" role="dialog" data-testid="viewer-modal">
-      <div class="vm-inner">
-        <div class="vm-head">
-          <h3>{note.pages[0]?.comment ?? "노트"}</h3>
-          <button class="btn" onClick={onClose}>✕</button>
-        </div>
-        <p class="hint">페이지 {note.pages.length}개 · 작성자 {clientId}</p>
-        <ol class="vm-pages">
-          {note.pages.map((p, i) => (
-            <li
-              class={i === pageIndex ? "current" : ""}
-              aria-current={i === pageIndex ? "true" : undefined}
-              data-testid="vm-page"
-              onClick={() => setPageIndex(i)}
-            >
-              {p.comment ?? "(주석 없음)"}
-            </li>
-          ))}
-        </ol>
-        {gistId && (
-          <button class="btn" onClick={copyLink} data-testid="copy-page-link">
-            이 페이지 링크 복사
-          </button>
-        )}
+    <div class="collected" data-testid="collected-notes">
+      <div class="cn-head">
+        <strong>수집한 노트 {collected.length}개</strong>
+        <button
+          class="btn primary"
+          data-testid="upload-collected"
+          onClick={onUpload}
+          disabled={busy || !hasGist}
+        >
+          {busy ? "업로드 중…" : "모두 업로드"}
+        </button>
       </div>
-      <style>{`
-        .viewer-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-          display: flex; align-items: center; justify-content: center; z-index: 50; }
-        .vm-inner { background: var(--color-surface); border-radius: var(--radius);
-          padding: var(--space-5); max-width: 32rem; width: 90%; box-shadow: var(--shadow); }
-        .vm-head { display: flex; justify-content: space-between; align-items: center; }
-        .vm-pages { margin: var(--space-3) 0; }
-        .vm-pages li { cursor: pointer; }
-        .vm-pages li.current { font-weight: 600; color: var(--color-accent); }
-      `}</style>
+      <ul class="cn-list">
+        {collected.map((n, i) => (
+          <li data-testid="collected-item">
+            {i + 1}. {n.pages[0]?.comment ?? "(주석 없음)"} · {n.pages.length}p
+            <button class="link" data-testid="collected-remove" onClick={() => onRemove(n.id)}>
+              빼기
+            </button>
+          </li>
+        ))}
+      </ul>
+      {!hasGist && <p class="hint">노트를 공유하려면 먼저 리플레이를 업로드해야 합니다.</p>}
+      <p class="hint">아직 올리지 않았습니다 — 페이지를 떠나면 수집한 노트는 사라집니다.</p>
     </div>
   );
 }
@@ -852,8 +979,21 @@ const STYLES = `
   .marker { position: absolute; top: 0; transform: translateX(-50%); width: 1.4rem; height: 1.4rem;
     border-radius: 50%; border: none; background: var(--color-accent); color: var(--color-accent-contrast);
     font-size: 0.7rem; line-height: 1.4rem; padding: 0; }
-  .pb-stats { display: flex; gap: var(--space-4); font-size: var(--text-sm); color: var(--color-text-muted); flex-wrap: wrap; }
+  .pb-stats { display: flex; gap: var(--space-4); align-items: center; font-size: var(--text-sm);
+    color: var(--color-text-muted); flex-wrap: wrap; }
   .pb-stats .warn, .support-badge.warn { color: var(--color-warn); }
+  .piece-slot { display: flex; gap: var(--space-1); align-items: center; }
+  .piece-empty { font-family: var(--font-mono); }
+  .piece-preview { display: block; }
+  .piece-preview.dimmed { opacity: 0.4; }
+  .collected { border: 1px solid var(--color-accent); border-radius: var(--radius-sm);
+    padding: var(--space-3); display: grid; gap: var(--space-2); }
+  .cn-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+  .cn-list { display: grid; gap: var(--space-1); font-size: var(--text-sm); margin: 0;
+    padding-left: var(--space-4); }
+  .cn-list .link { background: none; border: none; color: var(--color-accent); margin-left: var(--space-2); }
+  .upload-status { font-size: var(--text-sm); margin: 0; }
+  .upload-notice { color: var(--color-warn); font-size: var(--text-sm); margin: 0; }
   .support-badge { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
     background: var(--color-surface-2); font-size: var(--text-sm); margin: 0; }
   .support-badge.blocked { color: var(--color-danger); }
