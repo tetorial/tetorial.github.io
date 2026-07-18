@@ -189,7 +189,14 @@ export default function SimulatorPanel(props: Props) {
   const isEdit = props.entry.kind === "existing";
 
   return (
-    <div class="sim-modal" role="dialog" aria-label="시뮬레이터" data-testid="sim-panel">
+    // 인플레이스 전환(M6-A AW-34): 오버레이 모달이 아니라 재생 영역 자리에 놓이는 문서 흐름 내
+    // 편집 영역이다 — fixed·backdrop·z-index 층·role="dialog" 없음. blur 배선(§5 포커스 함정,
+    // W4 결함7)은 sim-inner의 onClick으로 그대로 유지한다.
+    <section
+      class="sim-inplace"
+      aria-label={isEdit ? "노트 이어서 편집" : "시뮬레이터"}
+      data-testid="sim-panel"
+    >
       <div class="sim-inner" onClick={blurClickedButton}>
         <div class="sim-head">
           <h2>{isEdit ? "노트 이어서 편집" : "시뮬레이터"}</h2>
@@ -328,12 +335,11 @@ export default function SimulatorPanel(props: Props) {
       </div>
 
       <style>{`
-        .sim-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 60;
-          display: flex; align-items: center; justify-content: center; }
-        .sim-inner { background: var(--color-surface); border-radius: var(--radius);
-          padding: var(--space-5); max-width: 60rem; width: 95%; max-height: 92vh; overflow: auto;
-          box-shadow: var(--shadow); }
-        .sim-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
+        /* 인플레이스 편집 영역 — 재생 영역과 같은 문서 흐름 안에서 교체된다(AW-34). 오버레이
+           포지셔닝·배경·z-index 없음. 세로 간격은 sim-inner grid gap이 담당한다. */
+        .sim-inplace { display: block; }
+        .sim-inner { display: grid; gap: var(--space-3); }
+        .sim-head { display: flex; justify-content: space-between; align-items: center; }
         .sim-head h2 { margin: 0; }
         .sim-body { display: grid; grid-template-columns: auto 1fr; gap: var(--space-5); }
         .board-wrap { position: relative; display: inline-block; }
@@ -352,6 +358,6 @@ export default function SimulatorPanel(props: Props) {
         .status { color: var(--color-warn); font-size: var(--text-sm); }
         @media (max-width: 48rem) { .sim-body { grid-template-columns: 1fr; } }
       `}</style>
-    </div>
+    </section>
   );
 }

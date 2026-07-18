@@ -124,13 +124,19 @@ test.describe("W5-2b 셀 팔레트·포인터 도구", () => {
     await expect(ghost).toHaveCSS("top", `${(TOTAL - 1 - 5) * CELL}px`);
 
     // erase 도구에서는 고스트를 표시하지 않는다.
+    // M6-A 비모달 전환(#55) 이후 편집 영역이 문서 흐름에 놓여, 도구 버튼 클릭 시 브라우저가
+    // 버튼을 뷰포트로 스크롤한다(모달일 때는 fixed 오버레이라 스크롤이 없어 pt 재사용이 유효했다).
+    // 스크롤로 보드가 이동하므로 매 클릭 후 호버 좌표를 다시 계산한다 — 관측(고스트 표시/은닉)은
+    // 불변이다. 사유: apps/web/QUESTIONS.md "M6-A AW-31 좌표 재계산".
     await page.getByTestId("tool-erase").click();
-    await page.mouse.move(pt.x + 1, pt.y + 1);
+    const eraseHover = await pagePoint(canvas, hoverCell.x + 1, hoverCell.y + 1);
+    await page.mouse.move(eraseHover.x, eraseHover.y);
     await expect(ghost).toBeHidden();
     await page.getByTestId("tool-cell").click();
 
     // 캔버스 이탈 시 숨김.
-    await page.mouse.move(pt.x, pt.y);
+    const reHover = await pagePoint(canvas, hoverCell.x, hoverCell.y);
+    await page.mouse.move(reHover.x, reHover.y);
     await expect(ghost).toBeVisible();
     const box = await canvas.boundingBox();
     if (!box) throw new Error("bounding box 없음");
