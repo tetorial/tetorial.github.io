@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, useCallback } from "preact/hooks";
 import { supportReport } from "@tetorial/replay-tetrio";
 import BoardCanvas from "./BoardCanvas.tsx";
+import GameHud from "./GameHud.tsx";
 import NoteViewer from "./NoteViewer.tsx";
 import SettingsPanel from "./SettingsPanel.tsx";
 import SimulatorPanel, { type SimEntry } from "./SimulatorPanel.tsx";
@@ -33,6 +34,7 @@ import {
 import { WorkerError } from "../lib/worker-client.ts";
 import { createPlaybackSession, type PlaybackSession } from "../lib/playback-session.ts";
 import { playbackFrame } from "../lib/view-frame.ts";
+import { playbackHud } from "../lib/game-hud.ts";
 import { collectMarkers, clusterMarkers, type NoteFileRef } from "../lib/markers.ts";
 import { applyUploadedFile, flattenSidebar, resolveNoteCandidates } from "../lib/notes-loading.ts";
 import { toDisplayError, type DisplayError } from "../lib/errors.ts";
@@ -324,7 +326,10 @@ export default function ReplayIsland() {
 
         {support && <SupportBadge support={support} />}
 
-        <BoardCanvas frame={playbackFrame(view)} />
+        {/* 재생 HUD(AW-29) — 위의 rAF 재렌더 루프가 보드와 함께 매 프레임 갱신한다(추가 루프 없음). */}
+        <GameHud model={playbackHud(view)}>
+          <BoardCanvas frame={playbackFrame(view)} />
+        </GameHud>
 
         <PlaybackControls
           session={session}
@@ -477,8 +482,7 @@ export default function ReplayIsland() {
 }
 
 /* 아일랜드 자신의 레이아웃 + 캐스케이드 보존 잔류분(M4-C AW-24).
-   - .piece-slot·.piece-empty: SimulatorPanel의 동명 규칙과 겹친다 — 이 시트가 DOM 마지막이어서
-     이기는 현행 캐스케이드를 보존하기 위해 잔류(동작 불변).
+   - .piece-slot·.piece-empty 잔류분은 GameHud 대체(M5-A)로 보존 대상이 사라져 제거했다.
    - .empty·.error-state·.status·.error-title: empty/error/loading 분기는 이 시트 밖에서 렌더되어
      현행에서도 적용되지 않는다(.status는 시뮬레이터 상태 문구에만 실효) — 동작 불변으로 잔류. */
 const STYLES = `
@@ -489,8 +493,6 @@ const STYLES = `
   .topbar-actions { display: flex; gap: var(--space-2); }
   .board-canvas { border: 1px solid var(--color-border); border-radius: var(--radius-sm);
     background: var(--color-surface); display: block; }
-  .piece-slot { display: flex; gap: var(--space-1); align-items: center; }
-  .piece-empty { font-family: var(--font-mono); }
   .upload-status { font-size: var(--text-sm); margin: 0; }
   .upload-notice { color: var(--color-warn); font-size: var(--text-sm); margin: 0; }
   .support-badge { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);

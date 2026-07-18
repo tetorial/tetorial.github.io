@@ -1,6 +1,5 @@
-// 재생 컨트롤(버튼·배속·스크러버·마커) + 홀드·넥스트 표시 (ReplayIsland 분해 — M4-C AW-23, #46).
-import PiecePreview from "../PiecePreview.tsx";
-import { holdPreview, nextPreviewSlice } from "../../lib/piece-preview.ts";
+// 재생 컨트롤(버튼·배속·스크러버·마커) (ReplayIsland 분해 — M4-C AW-23, #46).
+// 홀드·넥스트·카운터 표시는 M5-A에서 공통 HUD(GameHud)로 이관 — 여기는 대기 쓰레기 경고만 남는다.
 import { markerRatio, type clusterMarkers } from "../../lib/markers.ts";
 import type { PlaybackSession } from "../../lib/playback-session.ts";
 
@@ -74,43 +73,16 @@ export function PlaybackControls({
   );
 }
 
-/** 재생 화면 홀드·넥스트 (m3b AW-18 — renderer 프리뷰 배선. 표시 계산은 lib/piece-preview). */
+/** 재생 상태줄 — 홀드·넥스트·카운터는 GameHud로 이관(M5-A), 대기 쓰레기 경고만 담당. */
 function PlaybackStats({ session }: { session: PlaybackSession }) {
   const v = session.view;
-  const hold = holdPreview(v.hold);
-  const next = nextPreviewSlice(v.next);
   return (
     <div class="pb-stats" data-testid="pb-stats">
-      <span class="piece-slot" data-testid="pb-next" data-next={next.join("")}>
-        다음
-        {next.length > 0 ? (
-          next.map((p, i) => <PiecePreview piece={p} size={16} label={`다음 ${i + 1}번째 ${p}`} />)
-        ) : (
-          <span class="piece-empty">—</span>
-        )}
-      </span>
-      <span
-        class="piece-slot"
-        data-testid="pb-hold"
-        data-piece={hold?.piece ?? ""}
-        data-locked={hold?.locked ? "true" : "false"}
-      >
-        홀드
-        {hold ? (
-          <PiecePreview piece={hold.piece} size={16} dimmed={hold.locked} label={`홀드 ${hold.piece}`} />
-        ) : (
-          <span class="piece-empty">—</span>
-        )}
-      </span>
-      <span>B2B: {v.stats.b2b}</span>
-      <span>combo: {v.stats.combo}</span>
       {v.pendingGarbage > 0 && <span class="warn">대기 쓰레기: {v.pendingGarbage}</span>}
     </div>
   );
 }
 
-/* .piece-slot·.piece-empty 규칙은 ReplayIsland STYLES에 잔류 — SimulatorPanel의 동명 규칙과
-   겹치며, DOM 마지막 시트가 이기는 현행 캐스케이드를 보존하기 위함(m4c §1 동작 불변). */
 const STYLES = `
   .pb-controls { display: grid; gap: var(--space-2); }
   .pb-buttons { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
