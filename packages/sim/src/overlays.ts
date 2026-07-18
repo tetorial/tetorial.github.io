@@ -1,9 +1,9 @@
 // 오버레이 버퍼 — 엔진 밖 표시 레이어(하이라이트). 물리 무관, sim이 관리(명세 §3-2).
-// v1 작성 UI는 미구현이나 데이터 경로(그리기·캡처·직렬화·복원)는 완성한다(S-8).
+// 데이터 경로(그리기·캡처·직렬화·복원)는 S-8에서 선행 완성, 저작 UI는 M5-D에서 배선(D-21, #54).
 // 인코딩: PageState.overlays.highlights — rows[0]=최하단, 각 행 width 길이 "_"/"H".
 
-const OVERLAY_HEIGHT = 40; // 엔진 전체 높이(가시 20 + 버퍼 20, engine 명세 §4)
-const OVERLAY_WIDTH = 10;
+export const OVERLAY_HEIGHT = 40; // 엔진 전체 높이(가시 20 + 버퍼 20, engine 명세 §4)
+export const OVERLAY_WIDTH = 10;
 
 function emptyGrid(): boolean[][] {
   return Array.from({ length: OVERLAY_HEIGHT }, () =>
@@ -37,6 +37,11 @@ export class OverlayBuffer {
       }
     }
     return new OverlayBuffer(grid);
+  }
+
+  /** 셀 하이라이트 조회. 범위 밖은 false */
+  get(x: number, y: number): boolean {
+    return this.#grid[y]?.[x] === true;
   }
 
   /** 셀 하이라이트 설정. 범위 밖이거나 값 변화 없으면 false */

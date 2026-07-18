@@ -60,6 +60,9 @@ function normalizeEntry(raw: unknown): RoundEntry | null {
     userId: asString(raw["id"]) ?? "",
     username: asString(raw["username"]) ?? "",
     alive: typeof raw["alive"] === "boolean" ? raw["alive"] : null,
+    // `as unknown` 경유 사유(conventions §3): 관용 파싱 — 여기서는 객체임만 확인하고 필드
+    // 검증을 하지 않는다. 필드 부재 폴백·리터럴 좁히기는 convert 소관(§2). interface는
+    // Record<string, unknown>에서 직접 단언이 불가해 unknown을 거친다.
     options: options as unknown as TetrioRoundOptions,
     events: events as TetrioFrame[],
     stats: "stats" in raw ? (raw["stats"] ?? null) : null,
@@ -161,6 +164,7 @@ export function parseReplay(text: string): ParseResult<ReplayDoc> {
       userId: users[0]?.id ?? "",
       username: users[0]?.username ?? asString((options as Json)["username"]) ?? "",
       alive: null, // ttr은 승패 개념 없음 (§2)
+      // `as unknown` 경유 사유: ttrm 경로(normalizeEntry)와 동일 — 관용 파싱, 검증·폴백은 convert 소관.
       options: options as unknown as TetrioRoundOptions,
       events: replay["events"] as TetrioFrame[],
       stats: "results" in replay ? (replay["results"] ?? null) : null,
