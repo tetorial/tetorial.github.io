@@ -66,6 +66,10 @@ export default function BoardCanvas({ frame, cellSize = 26, theme, onCellPointer
               const pe = e as PointerEvent;
               // 휠클릭(button 1)의 브라우저 기본 자동 스크롤 진입을 막는다(m5-d-web §5 AW-33, 캔버스 한정).
               if (pe.button === 1) pe.preventDefault();
+              // 포인터 캡처: 캔버스 밖에서 버튼을 놓아도 up이 캔버스로 온다 — 스트로크가 열린 채
+              // 남아 복귀 호버가 계속 칠하는 결함 방지(M5-D 게이트 실측). 캡처 중 캔버스 밖
+              // 좌표는 hitTest가 null을 반환하므로 무해하다.
+              (pe.currentTarget as HTMLCanvasElement | null)?.setPointerCapture?.(pe.pointerId);
               hit(pe, "down");
             }
           : undefined
