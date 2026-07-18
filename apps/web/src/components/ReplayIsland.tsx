@@ -38,6 +38,7 @@ import { playbackHud } from "../lib/game-hud.ts";
 import { collectMarkers, clusterMarkers, type NoteFileRef } from "../lib/markers.ts";
 import { applyUploadedFile, flattenSidebar, resolveNoteCandidates } from "../lib/notes-loading.ts";
 import { toDisplayError, type DisplayError } from "../lib/errors.ts";
+import { replayViewMode, showsPlaybackChrome } from "../lib/sim-view.ts";
 import { Storage } from "../lib/storage.ts";
 import { loadSettings, resetSettings } from "../lib/settings.ts";
 import { applyTheme } from "../lib/theme.ts";
@@ -112,7 +113,10 @@ export default function ReplayIsland() {
     startLoaded(res.loaded);
   };
 
-  const loadGist = async (gistId: string, link?: ReturnType<typeof parseDeepLink>): Promise<void> => {
+  const loadGist = async (
+    gistId: string,
+    link?: ReturnType<typeof parseDeepLink>,
+  ): Promise<void> => {
     setPhase("loading");
     let worker;
     try {
@@ -143,11 +147,15 @@ export default function ReplayIsland() {
 
   const buildSession = (loaded: LoadedReplay, r: number, p: number): void => {
     sessionRef.current?.dispose();
-    sessionRef.current = createPlaybackSession(loaded.doc, { round: r, player: p }, {
-      now: () => performance.now(),
-      schedule: (cb) => requestAnimationFrame(cb),
-      cancel: (h) => cancelAnimationFrame(h),
-    });
+    sessionRef.current = createPlaybackSession(
+      loaded.doc,
+      { round: r, player: p },
+      {
+        now: () => performance.now(),
+        schedule: (cb) => requestAnimationFrame(cb),
+        cancel: (h) => cancelAnimationFrame(h),
+      },
+    );
   };
 
   // 미업로드 수집 노트가 있으면 이탈 시 경고만 한다(AW-15) — 수집함은 메모리 전용이라
@@ -238,7 +246,12 @@ export default function ReplayIsland() {
     } catch (e) {
       if (e instanceof WorkerError) {
         // 403(editKey 불일치) 등은 §6 매핑으로 정직하게 표기한다(AW-14). 수집함은 유지 — 실패했으므로.
-        const d = toDisplayError({ source: "worker", status: e.status, body: e.body, retryAfterMs: e.retryAfterMs });
+        const d = toDisplayError({
+          source: "worker",
+          status: e.status,
+          body: e.body,
+          retryAfterMs: e.retryAfterMs,
+        });
         setUploadStatus(d.detailText ? `${d.title} — ${d.detailText}` : d.title);
       } else {
         setUploadStatus("업로드에 실패했습니다.");
@@ -271,7 +284,11 @@ export default function ReplayIsland() {
     return <EmptyState onLocalText={openLocalText} />;
   }
   if (phase === "loading") {
-    return <p class="status" data-testid="loading">리플레이를 불러오는 중…</p>;
+    return (
+      <p class="status" data-testid="loading">
+        리플레이를 불러오는 중…
+      </p>
+    );
   }
   if (phase === "error" && error) {
     return <ErrorState error={error} onRetry={() => window.location.reload()} />;
@@ -294,68 +311,113 @@ export default function ReplayIsland() {
   const myClientId = storage.peekClientId();
   const sidebar = flattenSidebar(loaded.notesFiles, myClientId);
 
+  // 인플레이스 전환(AW-34): simEntry 활성 시 재생 영역을 편집 영역으로 교체한다 — 오버레이 모달
+  // 없이 같은 자리에서 모드가 바뀐다. 재생 전용 크롬(재생 컨트롤·라운드/플레이어·업로드·분기 바·
+  // 사이드바)은 편집 중 숨긴다(AW-35, showChrome=false).
+  const viewMode = replayViewMode(simEntry);
+  const showChrome = showsPlaybackChrome(viewMode);
+
   return (
     <div class="replay-layout" data-testid="replay-loaded">
       <div class="replay-main">
-        <div class="topbar">
-          <RoundPlayerSelect
-            doc={loaded.doc}
-            roundMap={loaded.roundMap}
-            round={round}
-            player={player}
-            onChange={changeRoundPlayer}
-          />
-          <div class="topbar-actions">
-            {typeof loaded.source === "string" && (
-              <button class="btn primary" onClick={() => setShowUpload(true)} data-testid="replay-upload">
-                리플레이 업로드
-              </button>
-            )}
-            <button class="btn" onClick={() => setShowSettings((s) => !s)} data-testid="open-settings">
-              설정
-            </button>
-          </div>
-        </div>
+        {showChrome ? (
+          <>
+            <div class="topbar">
+              <RoundPlayerSelect
+                doc={loaded.doc}
+                roundMap={loaded.roundMap}
+                round={round}
+                player={player}
+                onChange={changeRoundPlayer}
+              />
+              <div class="topbar-actions">
+                {typeof loaded.source === "string" && (
+                  <button
+                    class="btn primary"
+                    onClick={() => setShowUpload(true)}
+                    data-testid="replay-upload"
+                  >
+                    리플레이 업로드
+                  </button>
+                )}
+                <button
+                  class="btn"
+                  onClick={() => setShowSettings((s) => !s)}
+                  data-testid="open-settings"
+                >
+                  설정
+                </button>
+              </div>
+            </div>
 
-        {shareGistId && (
-          <ShareBanner
-            gistId={shareGistId}
-            onClose={() => setShareGistId(null)}
-          />
+            {shareGistId && (
+              <ShareBanner gistId={shareGistId} onClose={() => setShareGistId(null)} />
+            )}
+
+            {support && <SupportBadge support={support} />}
+
+            {/* 재생 HUD(AW-29) — 위의 rAF 재렌더 루프가 보드와 함께 매 프레임 갱신한다(추가 루프 없음). */}
+            <GameHud model={playbackHud(view)}>
+              <BoardCanvas frame={playbackFrame(view)} />
+            </GameHud>
+
+            <PlaybackControls
+              session={session}
+              clusters={clusters}
+              onMarkerClick={(m) => {
+                const cand = resolveNoteCandidates(loaded.notesFiles, m.noteId, m.clientId);
+                if (cand[0]) setViewerNote({ ...cand[0], page: null });
+              }}
+            />
+
+            <BranchBar
+              onBranch={() => {
+                const result = session.captureBranch();
+                if (!result.ok) {
+                  // 실패는 여기서 인라인 안내로 소화한다(AW-22) — SimulatorPanel에는 성공만 넘어간다.
+                  setBranchNotice(`분기 불가: ${result.reason}`);
+                  return;
+                }
+                setBranchNotice(null);
+                setSimEntry({
+                  kind: "branch",
+                  branch: result,
+                  frame: session.frame,
+                  round,
+                  player,
+                });
+              }}
+              hasGist={typeof loaded.source !== "string"}
+              limitReason={noteLimitReason(loaded.notesFiles)}
+              blockedReason={branchNotice}
+            />
+          </>
+        ) : (
+          // 편집 영역 — 재생 영역 자리에 인플레이스로 놓인다(AW-34). 종료(onExit)의 분기 프레임
+          // 복귀·수집함 유지는 현행 그대로다(§3, 회귀 1순위).
+          simEntry && (
+            <SimulatorPanel
+              storage={storage}
+              loaded={loaded}
+              entry={simEntry}
+              collectedNoteIds={collected.map((n) => n.id)}
+              settings={settings}
+              onCollect={(note) => {
+                setCollected((c) => collectNote(c, note));
+                setUploadStatus(null); // 새로 수집했다 — 지난 업로드 결과 문구는 더 이상 현재 상태가 아니다
+              }}
+              onExit={() => {
+                const entry = simEntry;
+                setSimEntry(null);
+                buildSession(loaded, round, player);
+                // 분기 진입이었다면 새 세션(프레임 0)을 분기 지점으로 되돌린다(§3-D "분기 프레임 복귀", 결함3).
+                if (entry.kind === "branch") sessionRef.current?.seek(entry.frame);
+              }}
+            />
+          )
         )}
 
-        {support && <SupportBadge support={support} />}
-
-        {/* 재생 HUD(AW-29) — 위의 rAF 재렌더 루프가 보드와 함께 매 프레임 갱신한다(추가 루프 없음). */}
-        <GameHud model={playbackHud(view)}>
-          <BoardCanvas frame={playbackFrame(view)} />
-        </GameHud>
-
-        <PlaybackControls
-          session={session}
-          clusters={clusters}
-          onMarkerClick={(m) => {
-            const cand = resolveNoteCandidates(loaded.notesFiles, m.noteId, m.clientId);
-            if (cand[0]) setViewerNote({ ...cand[0], page: null });
-          }}
-        />
-
-        <BranchBar
-          onBranch={() => {
-            const result = session.captureBranch();
-            if (!result.ok) {
-              // 실패는 여기서 인라인 안내로 소화한다(AW-22) — SimulatorPanel에는 성공만 넘어간다.
-              setBranchNotice(`분기 불가: ${result.reason}`);
-              return;
-            }
-            setBranchNotice(null);
-            setSimEntry({ kind: "branch", branch: result, frame: session.frame, round, player });
-          }}
-          hasGist={typeof loaded.source !== "string"}
-          limitReason={noteLimitReason(loaded.notesFiles)}
-          blockedReason={branchNotice}
-        />
-
+        {/* 수집함은 재생·편집 두 모드 모두에서 유지된다(§3 수집함 유지 — 회귀 1순위). */}
         {collected.length > 0 && (
           <CollectedNotesBar
             collected={collected}
@@ -379,70 +441,59 @@ export default function ReplayIsland() {
         )}
       </div>
 
-      <aside class="replay-side">
-        {showSettings && (
-          <SettingsPanel
-            handling={settings.handling}
-            keys={settings.keys}
-            theme={theme}
-            onHandlingChange={(patch) => {
-              const handling = { ...settings.handling, ...patch };
-              storage.setHandling(handling);
-              setSettings((s) => ({ ...s, handling }));
+      {/* 노트 사이드바·설정은 재생 전용 크롬 — 편집 중 숨긴다(AW-35). 재편집 진입은 이 사이드바에서
+          시작하므로(NoteViewer→이어서 편집) 편집 중 재진입 충돌을 원천 차단한다. */}
+      {showChrome && (
+        <aside class="replay-side">
+          {showSettings && (
+            <SettingsPanel
+              handling={settings.handling}
+              keys={settings.keys}
+              theme={theme}
+              onHandlingChange={(patch) => {
+                const handling = { ...settings.handling, ...patch };
+                storage.setHandling(handling);
+                setSettings((s) => ({ ...s, handling }));
+              }}
+              onThemeChange={(t) => {
+                storage.setTheme(t);
+                setThemeState(t);
+                applyTheme(t);
+              }}
+              onReset={() => setSettings(resetSettings(storage))}
+              onClose={() => setShowSettings(false)}
+            />
+          )}
+
+          <Sidebar
+            entries={sidebar}
+            onOpen={(e) => {
+              const cand = resolveNoteCandidates(loaded.notesFiles, e.noteId, e.clientId);
+              if (cand[0]) setViewerNote({ ...cand[0], page: null });
             }}
-            onThemeChange={(t) => {
-              storage.setTheme(t);
-              setThemeState(t);
-              applyTheme(t);
-            }}
-            onReset={() => setSettings(resetSettings(storage))}
-            onClose={() => setShowSettings(false)}
           />
-        )}
 
-        <Sidebar
-          entries={sidebar}
-          onOpen={(e) => {
-            const cand = resolveNoteCandidates(loaded.notesFiles, e.noteId, e.clientId);
-            if (cand[0]) setViewerNote({ ...cand[0], page: null });
-          }}
-        />
-
-        {candidates && candidates.length > 1 && (
-          <div class="candidates" data-testid="note-candidates">
-            <p>같은 노트 ID의 후보가 여러 개입니다:</p>
-            <ul>
-              {candidates.map((c) => (
-                <li>
-                  <button class="btn" onClick={() => { setViewerNote({ ...c, page: null }); setCandidates(null); }}>
-                    {c.clientId} · {c.note.pages.length}p
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </aside>
-
-      {simEntry && (
-        <SimulatorPanel
-          storage={storage}
-          loaded={loaded}
-          entry={simEntry}
-          collectedNoteIds={collected.map((n) => n.id)}
-          settings={settings}
-          onCollect={(note) => {
-            setCollected((c) => collectNote(c, note));
-            setUploadStatus(null); // 새로 수집했다 — 지난 업로드 결과 문구는 더 이상 현재 상태가 아니다
-          }}
-          onExit={() => {
-            const entry = simEntry;
-            setSimEntry(null);
-            buildSession(loaded, round, player);
-            // 분기 진입이었다면 새 세션(프레임 0)을 분기 지점으로 되돌린다(§3-D "분기 프레임 복귀", 결함3).
-            if (entry.kind === "branch") sessionRef.current?.seek(entry.frame);
-          }}
-        />
+          {candidates && candidates.length > 1 && (
+            <div class="candidates" data-testid="note-candidates">
+              <p>같은 노트 ID의 후보가 여러 개입니다:</p>
+              <ul>
+                {candidates.map((c) => (
+                  <li>
+                    <button
+                      class="btn"
+                      onClick={() => {
+                        setViewerNote({ ...c, page: null });
+                        setCandidates(null);
+                      }}
+                    >
+                      {c.clientId} · {c.note.pages.length}p
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </aside>
       )}
 
       {showUpload && (
