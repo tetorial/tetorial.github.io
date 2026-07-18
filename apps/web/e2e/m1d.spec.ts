@@ -182,10 +182,11 @@ test.describe("M1d-7 키 기본값", () => {
     await enterSim(page);
     await page.keyboard.press("ShiftLeft");
     await page.waitForTimeout(100);
-    // 홀드 성공 = hold 표시 + 잠김 (PieceBar — 홀드 액션이 발화됐다는 신호).
-    // AW-18에서 표기가 프리뷰 캔버스로 바뀌어 상태는 data 속성으로 관측한다.
-    await expect(page.getByTestId("sim-hold")).toHaveAttribute("data-locked", "true");
-    await expect(page.getByTestId("sim-hold")).toHaveAttribute("data-piece", /[IJLOSTZ]/);
+    // 홀드 성공 = hold 표시 + 잠김 (공통 HUD — 홀드 액션이 발화됐다는 신호).
+    // 그래픽 표기라 상태는 data 속성으로 관측한다(M5-A GameHud — 재생 HUD와 구별해 모달로 스코프).
+    const hudHold = page.getByTestId("sim-panel").getByTestId("hud-hold");
+    await expect(hudHold).toHaveAttribute("data-locked", "true");
+    await expect(hudHold).toHaveAttribute("data-piece", /[IJLOSTZ]/);
   });
 
   test("M1d-7 시계 회전 기본키 ArrowUp이 동작한다", async ({ page }) => {

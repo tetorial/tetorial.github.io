@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, useCallback } from "preact/hooks";
 import { attachDom } from "@tetorial/input";
 import BoardCanvas from "./BoardCanvas.tsx";
-import PiecePreview from "./PiecePreview.tsx";
+import GameHud from "./GameHud.tsx";
 import {
   createSimulator,
   type CreateSimulatorParams,
@@ -14,11 +14,11 @@ import {
 import { finishNote } from "../lib/note-collection.ts";
 import { branchOrigin, type LoadedReplay } from "../lib/open-replay.ts";
 import { workFrame } from "../lib/view-frame.ts";
-import { holdPreview, nextPreviewSlice } from "../lib/piece-preview.ts";
+import { workHud } from "../lib/game-hud.ts";
 import type { Storage } from "../lib/storage.ts";
 import type { HandlingConfig, KeyBindings } from "@tetorial/input";
 import type { CaptureResult } from "@tetorial/adapter-tetrio";
-import type { Tool, WorkView } from "@tetorial/sim";
+import type { Tool } from "@tetorial/sim";
 import type { Note } from "@tetorial/types";
 
 /** 시뮬레이터 진입 경로 — 리플레이 분기(신규 노트) 또는 내 노트 이어서 편집(AW-13).
@@ -150,8 +150,10 @@ export default function SimulatorPanel(props: Props) {
 
         <div class="sim-body">
           <div class="sim-board">
-            <PieceBar work={sim.session.work} />
-            <BoardCanvas frame={workFrame(sim.session.work)} onCellPointer={onCellPointer} />
+            {/* 공통 HUD(AW-26) — Hold/Next/카운터. 표시 계산은 workHud, 레이아웃 규범은 GameHud. */}
+            <GameHud model={workHud(sim.session.work)}>
+              <BoardCanvas frame={workFrame(sim.session.work)} onCellPointer={onCellPointer} />
+            </GameHud>
             <div class="tool-row">
               {(["cell", "erase", "highlight"] as Tool["kind"][]).map((k) => (
                 <button
@@ -229,10 +231,6 @@ export default function SimulatorPanel(props: Props) {
         .sim-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
         .sim-head h2 { margin: 0; }
         .sim-body { display: grid; grid-template-columns: auto 1fr; gap: var(--space-5); }
-        .piece-bar { display: flex; gap: var(--space-4); align-items: center; margin-bottom: var(--space-2);
-          font-size: var(--text-sm); color: var(--color-text-muted); }
-        .piece-slot { display: flex; gap: var(--space-2); align-items: center; }
-        .piece-empty { font-family: var(--font-mono); color: var(--color-text-muted); }
         .tool-row { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
         .sim-side { display: grid; gap: var(--space-3); align-content: start; }
         .comment-label { display: grid; gap: var(--space-1); }
@@ -243,39 +241,6 @@ export default function SimulatorPanel(props: Props) {
         .status { color: var(--color-warn); font-size: var(--text-sm); }
         @media (max-width: 48rem) { .sim-body { grid-template-columns: 1fr; } }
       `}</style>
-    </div>
-  );
-}
-
-/** 시뮬레이터 홀드·넥스트 (m3b AW-18 — renderer 프리뷰 배선. 표시 계산은 lib/piece-preview). */
-function PieceBar({ work }: { work: WorkView }) {
-  const hold = holdPreview(work.hold);
-  const next = nextPreviewSlice(work.next);
-  // 그래픽 표기라 표시 상태가 텍스트로 남지 않는다 — 상태는 data 속성으로 관측 가능하게 둔다
-  // (게이트 11 시각 확인 · e2e 회귀의 신호. 이전 텍스트 표기가 그 역할을 했다).
-  return (
-    <div class="piece-bar">
-      <span
-        class="piece-slot"
-        data-testid="sim-hold"
-        data-piece={hold?.piece ?? ""}
-        data-locked={hold?.locked ? "true" : "false"}
-      >
-        홀드
-        {hold ? (
-          <PiecePreview piece={hold.piece} dimmed={hold.locked} label={`홀드 ${hold.piece}${hold.locked ? " (잠김)" : ""}`} />
-        ) : (
-          <span class="piece-empty">—</span>
-        )}
-      </span>
-      <span class="piece-slot" data-testid="sim-next" data-next={next.join("")}>
-        다음
-        {next.length > 0 ? (
-          next.map((p, i) => <PiecePreview piece={p} size={18} label={`다음 ${i + 1}번째 ${p}`} />)
-        ) : (
-          <span class="piece-empty">—</span>
-        )}
-      </span>
     </div>
   );
 }

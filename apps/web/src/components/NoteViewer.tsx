@@ -2,11 +2,11 @@
 // 페이지를 prev/next로 넘기며 보드와 주석을 함께 본다. 내 노트면 "이어서 편집"으로 저작 세션에 넘긴다.
 import { useEffect, useMemo, useState } from "preact/hooks";
 import BoardCanvas from "./BoardCanvas.tsx";
-import PiecePreview from "./PiecePreview.tsx";
+import GameHud from "./GameHud.tsx";
 import { createNoteViewer } from "../lib/note-viewer.ts";
 import { buildDeepLink } from "../lib/deeplink.ts";
 import { workFrame } from "../lib/view-frame.ts";
-import { holdPreview, nextPreviewSlice } from "../lib/piece-preview.ts";
+import { workHud } from "../lib/game-hud.ts";
 import type { Note } from "@tetorial/types";
 
 interface Props {
@@ -29,8 +29,6 @@ export default function NoteViewer({ note, clientId, gistId, initialPage, onEdit
   const view = viewer.view;
   const page = viewer.current;
   const total = viewer.pages.length;
-  const hold = view ? holdPreview(view.hold) : null;
-  const next = view ? nextPreviewSlice(view.next) : [];
 
   const copyLink = (): void => {
     if (!gistId) return;
@@ -56,25 +54,10 @@ export default function NoteViewer({ note, clientId, gistId, initialPage, onEdit
         ) : (
           <div class="vm-body">
             <div class="vm-board">
-              <div class="vm-pieces">
-                <span class="vm-piece-slot">
-                  홀드
-                  {hold ? (
-                    <PiecePreview piece={hold.piece} dimmed={hold.locked} label={`홀드 ${hold.piece}`} />
-                  ) : (
-                    <span class="vm-piece-empty">—</span>
-                  )}
-                </span>
-                <span class="vm-piece-slot">
-                  다음
-                  {next.length > 0 ? (
-                    next.map((p, i) => <PiecePreview piece={p} size={16} label={`다음 ${i + 1}번째 ${p}`} />)
-                  ) : (
-                    <span class="vm-piece-empty">—</span>
-                  )}
-                </span>
-              </div>
-              <BoardCanvas frame={workFrame(view)} cellSize={20} />
+              {/* 공통 HUD(AW-26) — 뷰어의 view도 WorkView라 시뮬레이터와 같은 workHud를 탄다. */}
+              <GameHud model={workHud(view)}>
+                <BoardCanvas frame={workFrame(view)} cellSize={20} />
+              </GameHud>
             </div>
 
             <div class="vm-side">
@@ -129,10 +112,6 @@ export default function NoteViewer({ note, clientId, gistId, initialPage, onEdit
         .vm-head h3 { margin: 0; }
         .vm-body { display: grid; grid-template-columns: auto 1fr; gap: var(--space-5); }
         .vm-side { display: grid; gap: var(--space-3); align-content: start; }
-        .vm-pieces { display: flex; gap: var(--space-4); align-items: center; margin-bottom: var(--space-2);
-          font-size: var(--text-sm); color: var(--color-text-muted); }
-        .vm-piece-slot { display: flex; gap: var(--space-2); align-items: center; }
-        .vm-piece-empty { font-family: var(--font-mono); }
         .vm-comment { white-space: pre-wrap; margin: 0; }
         .vm-nav, .vm-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
         @media (max-width: 48rem) { .vm-body { grid-template-columns: 1fr; } }
