@@ -3,12 +3,22 @@ import { useEffect, useRef } from "preact/hooks";
 import { BoardRenderer, DEFAULT_THEME } from "@tetorial/renderer";
 import type { RenderFrame, Theme } from "@tetorial/renderer";
 
+/** 셀 히트테스트 콜백 페이로드 — leave에서는 cell=null(고스트 숨김용, m5-d-web §6 AW-31). */
+export interface CellPointerEvent {
+  cell: { x: number; y: number } | null;
+  /** CSS px 오프셋 — 고스트 프리뷰 스냅 계산용(m5-d-web §3). leave에서는 의미 없음(0). */
+  offsetX: number;
+  offsetY: number;
+  /** PointerEvent.button (0=좌, 1=휠, 2=우). leave에서는 -1. */
+  button: number;
+}
+
 interface Props {
   frame: RenderFrame;
   cellSize?: number;
   theme?: Partial<Theme>;
   /** 포인터 그리기용 셀 히트테스트 콜백(시뮬레이터 캔버스). */
-  onCellPointer?: (cell: { x: number; y: number }, phase: "down" | "move" | "up") => void;
+  onCellPointer?: (e: CellPointerEvent, phase: "down" | "move" | "up" | "leave") => void;
 }
 
 export default function BoardCanvas({ frame, cellSize = 26, theme, onCellPointer }: Props) {
@@ -41,8 +51,8 @@ export default function BoardCanvas({ frame, cellSize = 26, theme, onCellPointer
 
   const hit = (e: PointerEvent, phase: "down" | "move" | "up"): void => {
     if (!onCellPointer) return;
-    const cell = rendererRef.current?.hitTest(e.offsetX, e.offsetY);
-    if (cell) onCellPointer(cell, phase);
+    const cell = rendererRef.current?.hitTest(e.offsetX, e.offsetY) ?? null;
+    onCellPointer({ cell, offsetX: e.offsetX, offsetY: e.offsetY, button: e.button }, phase);
   };
 
   return (
@@ -50,9 +60,25 @@ export default function BoardCanvas({ frame, cellSize = 26, theme, onCellPointer
       ref={canvasRef}
       class="board-canvas"
       data-testid="board-canvas"
-      onPointerDown={onCellPointer ? (e) => hit(e as PointerEvent, "down") : undefined}
+      onPointerDown={
+        onCellPointer
+          ? (e) => {
+              const pe = e as PointerEvent;
+              // 휠클릭(button 1)의 브라우저 기본 자동 스크롤 진입을 막는다(m5-d-web §5 AW-33, 캔버스 한정).
+              if (pe.button === 1) pe.preventDefault();
+              hit(pe, "down");
+            }
+          : undefined
+      }
       onPointerMove={onCellPointer ? (e) => hit(e as PointerEvent, "move") : undefined}
       onPointerUp={onCellPointer ? (e) => hit(e as PointerEvent, "up") : undefined}
+      onPointerLeave={
+        onCellPointer
+          ? () => onCellPointer({ cell: null, offsetX: 0, offsetY: 0, button: -1 }, "leave")
+          : undefined
+      }
+      onContextMenu={onCellPointer ? (e) => e.preventDefault() : undefined}
+      onAuxClick={onCellPointer ? (e) => e.preventDefault() : undefined}
       style={{ touchAction: "none" }}
     />
   );

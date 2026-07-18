@@ -4,7 +4,8 @@
 // 주석 입력 포커스 ↔ input.suspend 배선. 키보드는 attachDom(input, window)로 배선.
 import { useEffect, useRef, useState, useCallback } from "preact/hooks";
 import { attachDom } from "@tetorial/input";
-import BoardCanvas from "./BoardCanvas.tsx";
+import { DEFAULT_THEME } from "@tetorial/renderer";
+import BoardCanvas, { type CellPointerEvent } from "./BoardCanvas.tsx";
 import GameHud from "./GameHud.tsx";
 import {
   createSimulator,
@@ -15,11 +16,23 @@ import { finishNote } from "../lib/note-collection.ts";
 import { branchOrigin, type LoadedReplay } from "../lib/open-replay.ts";
 import { workFrame } from "../lib/view-frame.ts";
 import { workHud } from "../lib/game-hud.ts";
+import {
+  eyedropperPick,
+  GHOST_ALPHA,
+  PALETTE_CELLS,
+  snapToCellOrigin,
+  strokeToolFor,
+  withAlpha,
+  type PaletteCell,
+} from "../lib/palette.ts";
 import type { Storage } from "../lib/storage.ts";
 import type { HandlingConfig, KeyBindings } from "@tetorial/input";
 import type { CaptureResult } from "@tetorial/adapter-tetrio";
 import type { Tool } from "@tetorial/sim";
 import type { Note } from "@tetorial/types";
+
+/** BoardCanvas에 넘기는 고정 셀 크기 — 고스트 스냅 계산도 이 값을 공유한다(AW-31). */
+const CELL_SIZE = 26;
 
 /** 시뮬레이터 진입 경로 — 리플레이 분기(신규 노트) 또는 내 노트 이어서 편집(AW-13).
     분기 실패는 진입 전에 인라인 안내로 소화된다(AW-22) — 성공 변형만 도달할 수 있다. */
@@ -48,11 +61,20 @@ interface Props {
 export default function SimulatorPanel(props: Props) {
   const simRef = useRef<SimulatorController | null>(null);
   const drawing = useRef(false);
+  /** 스트로크를 시작한 버튼 — 동시 눌림 시 먼저 시작된 스트로크만 종료시킨다(AW-32). */
+  const strokeButton = useRef<number | null>(null);
   const [, force] = useState(0);
   const rerender = useCallback(() => force((n) => n + 1), []);
   const [comment, setComment] = useState("");
   const [tool, setTool] = useState<Tool["kind"]>("cell");
+  const [paletteCell, setPaletteCell] = useState<PaletteCell>("G");
+  const [ghost, setGhost] = useState<{ left: number; top: number } | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+
+  // 도구가 cell을 벗어나면 고스트를 즉시 숨긴다(호버 위치가 바뀌지 않아도, AW-31).
+  useEffect(() => {
+    if (tool !== "cell") setGhost(null);
+  }, [tool]);
 
   // 세션 생성 + input 배선 (분기 스냅샷 또는 기존 노트에서 진입)
   useEffect(() => {
@@ -111,17 +133,45 @@ export default function SimulatorPanel(props: Props) {
   const sim = simRef.current;
   if (!sim) return null;
 
-  const onCellPointer = (cell: { x: number; y: number }, phase: "down" | "move" | "up"): void => {
+  /** 스포이드(휠클릭) — 커서 셀 값을 팔레트에 반영하고 cell 도구로 전환한다. 스트로크·언두 없음(AW-33). */
+  const pickFromBoard = (cell: { x: number; y: number } | null): void => {
+    if (!cell) return;
+    const value = sim.session.work.board[cell.y]?.[cell.x];
+    if (value === undefined) return;
+    const picked = eyedropperPick(value);
+    if (!picked) return; // "_" 무시
+    setPaletteCell(picked);
+    setTool("cell");
+  };
+
+  const onCellPointer = (e: CellPointerEvent, phase: "down" | "move" | "up" | "leave"): void => {
+    if (phase === "leave") {
+      setGhost(null);
+      return;
+    }
+    if (phase === "move") {
+      setGhost(
+        tool === "cell" && e.cell ? snapToCellOrigin(e.offsetX, e.offsetY, CELL_SIZE) : null,
+      );
+    }
     if (phase === "down") {
-      const t: Tool = tool === "cell" ? { kind: "cell", v: "G" } : tool === "erase" ? { kind: "erase" } : { kind: "highlight" };
+      if (drawing.current) return; // 이미 진행 중인 스트로크 — 나중 버튼 무시(AW-32 동시 클릭 규약)
+      if (e.button === 1) {
+        pickFromBoard(e.cell);
+        return;
+      }
+      const t = strokeToolFor(tool, e.button, paletteCell);
+      if (!t) return;
       sim.session.beginStroke(t);
-      sim.session.strokeTo(cell);
+      if (e.cell) sim.session.strokeTo(e.cell);
       drawing.current = true;
+      strokeButton.current = e.button;
     } else if (phase === "move" && drawing.current) {
-      sim.session.strokeTo(cell);
-    } else if (phase === "up" && drawing.current) {
+      if (e.cell) sim.session.strokeTo(e.cell);
+    } else if (phase === "up" && drawing.current && e.button === strokeButton.current) {
       sim.session.endStroke();
       drawing.current = false;
+      strokeButton.current = null;
     }
   };
 
@@ -152,7 +202,29 @@ export default function SimulatorPanel(props: Props) {
           <div class="sim-board">
             {/* 공통 HUD(AW-26) — Hold/Next/카운터. 표시 계산은 workHud, 레이아웃 규범은 GameHud. */}
             <GameHud model={workHud(sim.session.work)}>
-              <BoardCanvas frame={workFrame(sim.session.work)} onCellPointer={onCellPointer} />
+              <div class="board-wrap" data-testid="board-wrap">
+                <BoardCanvas
+                  cellSize={CELL_SIZE}
+                  frame={workFrame(sim.session.work)}
+                  onCellPointer={onCellPointer}
+                />
+                {ghost && (
+                  <div
+                    class="cell-ghost"
+                    data-testid="cell-ghost"
+                    style={{
+                      left: `${ghost.left}px`,
+                      top: `${ghost.top}px`,
+                      width: `${CELL_SIZE}px`,
+                      height: `${CELL_SIZE}px`,
+                      background: withAlpha(
+                        DEFAULT_THEME.cell[paletteCell] ?? "#888888",
+                        GHOST_ALPHA,
+                      ),
+                    }}
+                  />
+                )}
+              </div>
             </GameHud>
             <div class="tool-row">
               {(["cell", "erase", "highlight"] as Tool["kind"][]).map((k) => (
@@ -164,13 +236,38 @@ export default function SimulatorPanel(props: Props) {
                   {k === "cell" ? "그리기" : k === "erase" ? "지우개" : "하이라이트"}
                 </button>
               ))}
-              <button class="btn" data-testid="sim-undo" onClick={() => sim.session.undo()} disabled={!sim.session.canUndo}>
+              <button
+                class="btn"
+                data-testid="sim-undo"
+                onClick={() => sim.session.undo()}
+                disabled={!sim.session.canUndo}
+              >
                 실행 취소
               </button>
-              <button class="btn" data-testid="sim-redo" onClick={() => sim.session.redo()} disabled={!sim.session.canRedo}>
+              <button
+                class="btn"
+                data-testid="sim-redo"
+                onClick={() => sim.session.redo()}
+                disabled={!sim.session.canRedo}
+              >
                 다시 실행
               </button>
             </div>
+            {tool === "cell" && (
+              <div class="palette-row" data-testid="cell-palette">
+                {PALETTE_CELLS.map((c) => (
+                  <button
+                    class="swatch"
+                    data-testid={`palette-${c}`}
+                    data-cell={c}
+                    aria-pressed={paletteCell === c}
+                    aria-label={`셀 ${c}`}
+                    style={{ background: DEFAULT_THEME.cell[c] ?? "#888888" }}
+                    onClick={() => setPaletteCell(c)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <div class="sim-side">
@@ -200,8 +297,12 @@ export default function SimulatorPanel(props: Props) {
               {sim.session.pages.map((p, i) => (
                 <li>
                   {i + 1}. {p.comment ?? "(주석 없음)"}
-                  <button class="link" onClick={() => sim.session.loadPageIntoWork(p.id)}>불러오기</button>
-                  <button class="link" onClick={() => sim.session.deletePage(p.id)}>삭제</button>
+                  <button class="link" onClick={() => sim.session.loadPageIntoWork(p.id)}>
+                    불러오기
+                  </button>
+                  <button class="link" onClick={() => sim.session.deletePage(p.id)}>
+                    삭제
+                  </button>
                 </li>
               ))}
             </ol>
@@ -217,7 +318,11 @@ export default function SimulatorPanel(props: Props) {
             <p class="hint">
               완성한 노트는 아래 수집함에 모입니다 — 공유는 수집함에서 한 번에 올립니다.
             </p>
-            {status && <p class="status" data-testid="sim-status">{status}</p>}
+            {status && (
+              <p class="status" data-testid="sim-status">
+                {status}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -231,7 +336,13 @@ export default function SimulatorPanel(props: Props) {
         .sim-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
         .sim-head h2 { margin: 0; }
         .sim-body { display: grid; grid-template-columns: auto 1fr; gap: var(--space-5); }
+        .board-wrap { position: relative; display: inline-block; }
+        .cell-ghost { position: absolute; pointer-events: none; }
         .tool-row { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
+        .palette-row { display: flex; gap: var(--space-1); flex-wrap: wrap; margin-top: var(--space-2); }
+        .swatch { width: 1.5rem; height: 1.5rem; padding: 0; border-radius: var(--radius-sm);
+          border: 2px solid var(--color-border); cursor: pointer; }
+        .swatch[aria-pressed="true"] { border-color: var(--color-text); }
         .sim-side { display: grid; gap: var(--space-3); align-content: start; }
         .comment-label { display: grid; gap: var(--space-1); }
         textarea { width: 100%; padding: var(--space-2); border: 1px solid var(--color-border);
