@@ -126,7 +126,18 @@ export function drawFalling(
 }
 
 /**
- * 하이라이트 오버레이 — 항상 셀 위 반투명 레이어(물리 무관, 명세 §4-1).
+ * highlights 인코딩 기준 (x, y)의 하이라이트 여부 — 행 부재·문자 부재 = 비하이라이트.
+ * 가시 클리핑(isVisibleCell)과 무관한 데이터 판정이다(RD-9 — 가시 경계 밖 이웃도 이웃).
+ */
+function isHighlightAt(highlights: readonly string[], x: number, y: number): boolean {
+  return y >= 0 && highlights[y]?.[x] === "H";
+}
+
+/**
+ * 하이라이트 오버레이 — 셀을 채우지 않고 theme.highlight 색의 inside 외곽선을 그린다(RD-8).
+ * 선 두께는 cellSize 비례 max(1, round(cellSize/8)), 셀 경계 안쪽 — 셀 밖으로 나가지 않는다.
+ * 오토 타일링(RD-9): 4-이웃이 하이라이트인 변은 스트로크를 생략해 인접 묶음의 바깥 윤곽만 남긴다.
+ * 이웃 판정은 highlights 데이터 기준(가시 클리핑과 분리), 대각 이웃은 무시.
  * highlights[0] = 최하단 행. board와 동일 행 인코딩("_"=없음, "H"=하이라이트).
  */
 export function drawHighlights(
@@ -135,17 +146,48 @@ export function drawHighlights(
   highlights: readonly string[],
   theme: Theme,
 ): void {
-  ctx.fillStyle = theme.highlight;
+  const t = Math.max(1, Math.round(geo.cellSize / 8));
+  const half = t / 2;
+  let begun = false;
   for (let y = 0; y < highlights.length; y++) {
     const row = highlights[y];
     if (!row) continue;
     for (let x = 0; x < BOARD_WIDTH; x++) {
       if (row[x] !== "H") continue;
       if (!isVisibleCell(geo, x, y)) continue;
+      // 캔버스 상변 = 보드 y+1 쪽, 하변 = y-1 쪽 (논리 y는 아래→위 증가).
+      const top = !isHighlightAt(highlights, x, y + 1);
+      const bottom = !isHighlightAt(highlights, x, y - 1);
+      const left = !isHighlightAt(highlights, x - 1, y);
+      const right = !isHighlightAt(highlights, x + 1, y);
+      if (!top && !bottom && !left && !right) continue;
+      if (!begun) {
+        ctx.strokeStyle = theme.highlight;
+        ctx.lineWidth = t;
+        ctx.beginPath();
+        begun = true;
+      }
       const { px, py, size } = cellRect(geo, x, y);
-      ctx.fillRect(px, py, size, size); // 오버레이는 셀 전체(간격 없이) 덮는다
+      // 선분은 셀 변 전체 길이 — 코너가 자연히 이어진다. 중심선을 half만큼 안쪽으로 넣어 inside 유지.
+      if (top) {
+        ctx.moveTo(px, py + half);
+        ctx.lineTo(px + size, py + half);
+      }
+      if (bottom) {
+        ctx.moveTo(px, py + size - half);
+        ctx.lineTo(px + size, py + size - half);
+      }
+      if (left) {
+        ctx.moveTo(px + half, py);
+        ctx.lineTo(px + half, py + size);
+      }
+      if (right) {
+        ctx.moveTo(px + size - half, py);
+        ctx.lineTo(px + size - half, py + size);
+      }
     }
   }
+  if (begun) ctx.stroke();
 }
 
 /**

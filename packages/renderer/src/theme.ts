@@ -3,7 +3,7 @@ import type { Theme } from "./types.js";
 
 /**
  * 기본 테마 1종. 7미노는 가이드라인 표준색, G=회색, D=밝은 회색(G와 구분되는 무채색).
- * 하이라이트·고스트는 반투명 rgba (셀 위 표시 레이어).
+ * 고스트는 반투명 rgba(셀 위 표시 레이어), 하이라이트는 불투명 외곽선 색(RD-8).
  */
 export const DEFAULT_THEME: Theme = {
   background: "#101318",
@@ -22,7 +22,7 @@ export const DEFAULT_THEME: Theme = {
   dummyBorder: "#5b6169", // D·미지 문자 셀의 외곽선 (다른 테두리로 G와 재차 구분)
   ghostFill: "rgba(255, 255, 255, 0.12)",
   ghostStroke: "rgba(255, 255, 255, 0.55)",
-  highlight: "rgba(255, 214, 0, 0.35)", // 반투명 노랑 오버레이
+  highlight: "#ffffff", // 하이라이트 외곽선 색 — 불투명 흰색 (채움 아님, RD-8)
 };
 
 /**
