@@ -5,13 +5,13 @@ import { NOTE_ID_PATTERN } from "@tetorial/types";
 import type { Note, Origin, Page, PageState, Snapshot } from "@tetorial/types";
 import { NoteLimitError, checkNoteLimits, SERVER_FIELD_SENTINELS } from "./assemble.js";
 import { makePageId } from "./ids.js";
-import { OverlayBuffer } from "./overlays.js";
+import { OVERLAY_HEIGHT, OVERLAY_WIDTH, OverlayBuffer } from "./overlays.js";
 import { buildWorkView, captureWork, deepClone, restoreWork } from "./work.js";
 import type { WorkView } from "./work.js";
 
 /**
  * 그리기 도구 — cell/erase는 보드, highlight는 오버레이.
- * highlight의 force는 강제 모드("on" 켜기만 / "off" 끄기만 — W5-2b 우클릭 지우기용 예약),
+ * highlight의 force는 강제 모드("on" 켜기만 / "off" 끄기만 — 우클릭 지우기가 "off"를 발신, AW-32),
  * 부재 시 토글 모드: 스트로크의 첫 유효 셀 상태의 반전을 스트로크 전체 모드로 확정한다 (명세 §3).
  */
 export type Tool =
@@ -235,15 +235,17 @@ class AuthoringSessionImpl implements AuthoringSession {
     const key = `${cell.x},${cell.y}`;
     if (s.seen.has(key)) return; // 중복 셀 자동 무시(명세 §3)
     s.seen.add(key);
+    const inBoard =
+      cell.x >= 0 && cell.x < OVERLAY_WIDTH && cell.y >= 0 && cell.y < OVERLAY_HEIGHT;
     if (s.tool.kind === "highlight") {
-      if (s.highlightOn === undefined && cell.x >= 0 && cell.x < 10 && cell.y >= 0 && cell.y < 40) {
+      if (s.highlightOn === undefined && inBoard) {
         // 토글 모드 확정: 첫 유효 셀의 현재 상태 반전 — 스트로크가 끝날 때까지 불변(명세 §3)
-        s.highlightOn = (this.#overlay.serialize()[cell.y] ?? "")[cell.x] !== "H";
+        s.highlightOn = !this.#overlay.get(cell.x, cell.y);
       }
       if (s.highlightOn !== undefined && this.#overlay.set(cell.x, cell.y, s.highlightOn)) {
         s.changed = true;
       }
-    } else if (cell.x >= 0 && cell.x < 10 && cell.y >= 0 && cell.y < 40) {
+    } else if (inBoard) {
       const v: Cell = s.tool.kind === "erase" ? "_" : s.tool.v;
       this.#engine.setCells([{ x: cell.x, y: cell.y, v }]);
       s.changed = true;
