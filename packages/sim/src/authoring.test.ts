@@ -1,7 +1,9 @@
 // S-1 캡처 정합 · S-3 언두 매트릭스 (명세 §7) · M1b-3/M1b-4 노트 id 주입·입구 방어 (sim-m1b §3)
+// S-10 하이라이트 토글 (m5-d-sim §3)
 import { SimEngine } from "@tetorial/engine";
 import { describe, expect, it } from "vitest";
 import { InvalidNoteIdError, createAuthoringSession } from "./authoring.js";
+import type { Tool } from "./authoring.js";
 import { TEST_NOTE_ID, makeReplayOrigin, makeSnapshot, testNoteId } from "./testing/fixtures.js";
 
 /** 신규 경로 기본 init — 고정 noteId 주입 (M1b-3) */
@@ -140,6 +142,129 @@ describe("S-3 언두 매트릭스", () => {
     s.undo(); // 락만 되돌린다
     expect(s.pages.length).toBe(1); // 페이지는 그대로
     expect(s.work.board.every((row) => row.every((c) => c === "_"))).toBe(true); // 보드는 복귀
+  });
+});
+
+describe("S-10 하이라이트 토글", () => {
+  type Session = ReturnType<typeof createAuthoringSession>;
+  /** work 뷰에서 셀 하이라이트 여부 (serialize 인코딩: rows[y][x] === "H") */
+  const lit = (s: Session, x: number, y: number) =>
+    (s.work.overlays.highlights[y] ?? "")[x] === "H";
+  const stroke = (s: Session, tool: Tool, cells: { x: number; y: number }[]) => {
+    s.beginStroke(tool);
+    for (const c of cells) s.strokeTo(c);
+    s.endStroke();
+  };
+
+  it("S-10 ① 같은 셀 2회 스트로크 = 켜짐→꺼짐", () => {
+    const s = createAuthoringSession(newInit());
+    stroke(s, { kind: "highlight" }, [{ x: 2, y: 0 }]);
+    expect(lit(s, 2, 0)).toBe(true);
+    stroke(s, { kind: "highlight" }, [{ x: 2, y: 0 }]);
+    expect(lit(s, 2, 0)).toBe(false);
+    expect(s.work.overlays.highlights).toEqual([]);
+  });
+
+  it("S-10 ② 켜진 셀에서 시작한 드래그는 경로 전체를 끄기 — 꺼진 셀을 지나도 모드 불변", () => {
+    const s = createAuthoringSession(newInit());
+    // (2,0)·(4,0)만 켜 두고 (3,0)은 꺼진 채로 사이에 둔다
+    stroke(s, { kind: "highlight" }, [
+      { x: 2, y: 0 },
+      { x: 4, y: 0 },
+    ]);
+    // 켜진 (2,0)에서 시작 → 모드 "끄기" 확정. 꺼진 (3,0)을 지나도 (4,0)이 켜지지 않는다
+    stroke(s, { kind: "highlight" }, [
+      { x: 2, y: 0 },
+      { x: 3, y: 0 },
+      { x: 4, y: 0 },
+    ]);
+    expect(lit(s, 2, 0)).toBe(false);
+    expect(lit(s, 3, 0)).toBe(false); // 셀별 토글이었다면 켜졌을 셀
+    expect(lit(s, 4, 0)).toBe(false);
+    expect(s.work.overlays.highlights).toEqual([]);
+  });
+
+  it("S-10 ② 첫 셀이 범위 밖이면 다음 유효 셀에서 모드 확정", () => {
+    const s = createAuthoringSession(newInit());
+    stroke(s, { kind: "highlight" }, [{ x: 5, y: 0 }]); // (5,0) 켜 두기
+    // 범위 밖 → 켜진 (5,0)에서 "끄기" 확정 → 이후 셀도 끄기(꺼진 (6,0)은 무변경)
+    stroke(s, { kind: "highlight" }, [
+      { x: -1, y: 0 },
+      { x: 5, y: 0 },
+      { x: 6, y: 0 },
+    ]);
+    expect(s.work.overlays.highlights).toEqual([]);
+  });
+
+  it('S-10 ③ force:"on"은 켜기만 — 켜진 셀을 끄지 않는다', () => {
+    const s = createAuthoringSession(newInit());
+    stroke(s, { kind: "highlight" }, [{ x: 1, y: 1 }]);
+    stroke(s, { kind: "highlight", force: "on" }, [
+      { x: 1, y: 1 }, // 이미 켜짐 — 토글이었다면 여기서 "끄기"로 확정됐을 것
+      { x: 2, y: 1 },
+    ]);
+    expect(lit(s, 1, 1)).toBe(true);
+    expect(lit(s, 2, 1)).toBe(true);
+  });
+
+  it('S-10 ③ force:"off"는 끄기만 — 꺼진 셀에서 시작해도 켜지 않는다', () => {
+    const s = createAuthoringSession(newInit());
+    stroke(s, { kind: "highlight" }, [{ x: 1, y: 1 }]);
+    stroke(s, { kind: "highlight", force: "off" }, [
+      { x: 5, y: 5 }, // 꺼진 셀 — 토글이었다면 여기서 "켜기"로 확정됐을 것
+      { x: 1, y: 1 },
+    ]);
+    expect(lit(s, 5, 5)).toBe(false);
+    expect(lit(s, 1, 1)).toBe(false);
+    expect(s.work.overlays.highlights).toEqual([]);
+  });
+
+  it("S-10 ④ 무변경 스트로크는 언두 단위를 만들지 않는다", () => {
+    const s = createAuthoringSession(newInit());
+    // 토글 모드: 전 셀 범위 밖 → 모드 미확정·무변경
+    stroke(s, { kind: "highlight" }, [
+      { x: -1, y: 2 },
+      { x: 10, y: 0 },
+      { x: 0, y: 40 },
+    ]);
+    expect(s.canUndo).toBe(false);
+    expect(s.dirty).toBe(false);
+    // force:"off"를 빈 오버레이에 → set 전부 false
+    stroke(s, { kind: "highlight", force: "off" }, [{ x: 3, y: 3 }]);
+    expect(s.canUndo).toBe(false);
+    // force:"on"을 이미 켜진 셀에만 → 무변경
+    stroke(s, { kind: "highlight" }, [{ x: 7, y: 0 }]);
+    expect(s.canUndo).toBe(true);
+    stroke(s, { kind: "highlight", force: "on" }, [{ x: 7, y: 0 }]);
+    let undoCount = 0;
+    while (s.canUndo) {
+      s.undo();
+      undoCount++;
+    }
+    expect(undoCount).toBe(1); // 켜기 스트로크 1회만 언두 단위
+  });
+
+  it("S-10 ⑤ 토글 스트로크의 undo/redo 왕복", () => {
+    const s = createAuthoringSession(newInit());
+    stroke(s, { kind: "highlight" }, [
+      { x: 2, y: 0 },
+      { x: 3, y: 0 },
+    ]);
+    const litRows = ["__HH______"];
+    expect(s.work.overlays.highlights).toEqual(litRows);
+    stroke(s, { kind: "highlight" }, [
+      { x: 2, y: 0 },
+      { x: 3, y: 0 },
+    ]); // 끄기 토글
+    expect(s.work.overlays.highlights).toEqual([]);
+    s.undo(); // 끄기 취소 → 켜짐 복원
+    expect(s.work.overlays.highlights).toEqual(litRows);
+    s.redo(); // 끄기 재적용
+    expect(s.work.overlays.highlights).toEqual([]);
+    s.undo();
+    s.undo(); // 켜기까지 취소 → 초기 상태
+    expect(s.work.overlays.highlights).toEqual([]);
+    expect(s.canUndo).toBe(false);
   });
 });
 

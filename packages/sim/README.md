@@ -48,10 +48,23 @@ session.controls.move(1);
 session.controls.rotate("cw");
 session.controls.hardDrop();
 
-// 그리기: 스트로크 1회 = 언두 1단위. cell/erase는 보드, highlight는 오버레이(v2 UI).
+// 그리기: 스트로크 1회 = 언두 1단위. cell/erase는 보드, highlight는 오버레이.
 session.beginStroke({ kind: "cell", v: "G" });
 session.strokeTo({ x: 0, y: 0 });
 session.strokeTo({ x: 1, y: 0 });
+session.endStroke();
+
+// highlight는 토글: 첫 유효 셀의 현재 상태 반전을 스트로크 전체의 모드로 확정한다.
+// 같은 셀 2회 스트로크 = 켜짐→꺼짐. 드래그 중 셀별로 뒤집히지 않는다(지그재그 무깜빡임).
+session.beginStroke({ kind: "highlight" });
+session.strokeTo({ x: 2, y: 0 }); // 꺼진 셀에서 시작 → 이 스트로크는 "켜기"
+session.strokeTo({ x: 3, y: 0 });
+session.endStroke();
+
+// force는 강제 모드 — "off"는 끄기만(우클릭 지우기용, W5-2b), "on"은 켜기만.
+// 무변경 스트로크(전부 이미 그 상태·범위 밖)는 언두 단위를 만들지 않는다.
+session.beginStroke({ kind: "highlight", force: "off" });
+session.strokeTo({ x: 2, y: 0 });
 session.endStroke();
 
 // 페이지 = 상태 체크포인트. CRUD는 보드 언두 스택과 분리된 이력.
@@ -97,4 +110,4 @@ else createAuthoringSession({ ...derived, noteId: freshNoteId });
 
 ## 수용 기준
 
-테스트 이름에 기준 ID를 명시한다 (`src/*.test.ts`): S-1 캡처 정합 · S-2 불러오기 규범(3경로) · S-3 언두 매트릭스 · S-5 파생 진입 · S-6 조립·병합 · S-7 A/B 통합 · S-8 오버레이 경로 · S-9 드래프트 API 소멸 · M1b-1/2 파생 origin 복사 · M1b-3 id 값 주입 · M1b-4 입구 방어 (M1b-5 웹 배선은 `apps/web`).
+테스트 이름에 기준 ID를 명시한다 (`src/*.test.ts`): S-1 캡처 정합 · S-2 불러오기 규범(3경로) · S-3 언두 매트릭스 · S-5 파생 진입 · S-6 조립·병합 · S-7 A/B 통합 · S-8 오버레이 경로 · S-9 드래프트 API 소멸 · S-10 하이라이트 토글 · M1b-1/2 파생 origin 복사 · M1b-3 id 값 주입 · M1b-4 입구 방어 (M1b-5 웹 배선은 `apps/web`).
