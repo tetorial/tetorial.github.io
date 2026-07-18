@@ -9,8 +9,13 @@ import { OverlayBuffer } from "./overlays.js";
 import { buildWorkView, captureWork, deepClone, restoreWork } from "./work.js";
 import type { WorkView } from "./work.js";
 
-/** 그리기 도구 — cell/erase는 보드, highlight는 오버레이(v2 UI, 데이터 경로만 v1) */
-export type Tool = { kind: "cell"; v: Cell } | { kind: "erase" } | { kind: "highlight" };
+/**
+ * 그리기 도구 — cell/erase는 보드, highlight는 오버레이.
+ * highlight의 force는 강제 모드("on" 켜기만 / "off" 끄기만 — W5-2b 우클릭 지우기용 예약),
+ * 부재 시 토글 모드: 스트로크의 첫 유효 셀 상태의 반전을 스트로크 전체 모드로 확정한다 (명세 §3).
+ */
+export type Tool =
+  { kind: "cell"; v: Cell } | { kind: "erase" } | { kind: "highlight"; force?: "on" | "off" };
 
 /** PageDraft = Page (state.board가 썸네일 접근을 겸함 — 명세 §3) */
 export type PageDraft = Readonly<Page>;
@@ -57,7 +62,14 @@ export interface AuthoringSession {
 
 const UNDO_DEPTH = 50; // 명세 §3-1 언두 깊이 상한
 
-type StrokeState = { tool: Tool; pre: PageState; seen: Set<string>; changed: boolean };
+type StrokeState = {
+  tool: Tool;
+  pre: PageState;
+  seen: Set<string>;
+  changed: boolean;
+  /** highlight 스트로크의 확정 모드 — undefined는 미확정(첫 유효 셀에서 확정, 명세 §3) */
+  highlightOn: boolean | undefined;
+};
 
 class AuthoringSessionImpl implements AuthoringSession {
   readonly #origin: Origin;
@@ -211,6 +223,9 @@ class AuthoringSessionImpl implements AuthoringSession {
       pre: captureWork(this.#engine, this.#overlay),
       seen: new Set(),
       changed: false,
+      // force가 있으면 모드 즉시 확정, 없으면(토글) 첫 유효 셀까지 미확정
+      highlightOn:
+        tool.kind === "highlight" && tool.force !== undefined ? tool.force === "on" : undefined,
     };
   }
 
@@ -221,7 +236,13 @@ class AuthoringSessionImpl implements AuthoringSession {
     if (s.seen.has(key)) return; // 중복 셀 자동 무시(명세 §3)
     s.seen.add(key);
     if (s.tool.kind === "highlight") {
-      if (this.#overlay.set(cell.x, cell.y, true)) s.changed = true;
+      if (s.highlightOn === undefined && cell.x >= 0 && cell.x < 10 && cell.y >= 0 && cell.y < 40) {
+        // 토글 모드 확정: 첫 유효 셀의 현재 상태 반전 — 스트로크가 끝날 때까지 불변(명세 §3)
+        s.highlightOn = (this.#overlay.serialize()[cell.y] ?? "")[cell.x] !== "H";
+      }
+      if (s.highlightOn !== undefined && this.#overlay.set(cell.x, cell.y, s.highlightOn)) {
+        s.changed = true;
+      }
     } else if (cell.x >= 0 && cell.x < 10 && cell.y >= 0 && cell.y < 40) {
       const v: Cell = s.tool.kind === "erase" ? "_" : s.tool.v;
       this.#engine.setCells([{ x: cell.x, y: cell.y, v }]);
