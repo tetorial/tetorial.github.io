@@ -73,12 +73,20 @@ export function PlaybackControls({
   );
 }
 
-/** 재생 상태줄 — 홀드·넥스트·카운터는 GameHud로 이관(M5-A), 대기 쓰레기 경고만 담당. */
+/** 재생 상태줄 — 홀드·넥스트·카운터는 GameHud로 이관(M5-A), 대기 쓰레기 경고만 담당.
+    양보드(M6-B)는 보드별 대기 쓰레기를 각각 표시한다(플레이어 라벨은 2개 이상일 때만). */
 function PlaybackStats({ session }: { session: PlaybackSession }) {
-  const v = session.view;
+  const dual = session.boards.length > 1;
   return (
     <div class="pb-stats" data-testid="pb-stats">
-      {v.pendingGarbage > 0 && <span class="warn">대기 쓰레기: {v.pendingGarbage}</span>}
+      {session.boards.map(
+        (b) =>
+          b.view.pendingGarbage > 0 && (
+            <span class="warn">
+              대기 쓰레기{dual ? ` P${b.player + 1}` : ""}: {b.view.pendingGarbage}
+            </span>
+          ),
+      )}
     </div>
   );
 }

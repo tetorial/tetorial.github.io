@@ -64,7 +64,7 @@ describe("AW-2 로컬 열기·재생", () => {
     const parsed = parseReplay(text);
     if (!parsed.ok) throw new Error("fixture 파싱 실패");
     const timers = manualTimers();
-    const session = createPlaybackSession(parsed.value, { round: 0, player: 0 }, timers);
+    const session = createPlaybackSession(parsed.value, [{ round: 0, player: 0 }], timers);
 
     expect(session.frame).toBe(0);
     session.play();
@@ -84,8 +84,8 @@ describe("AW-2 로컬 열기·재생", () => {
     session.setSpeed(100); // 0.25~4× 클램프
     expect(session.speed).toBe(4);
 
-    // 분기 캡처는 항상 프레임 경계 → CaptureResult 반환
-    const branch = session.captureBranch();
+    // 분기 캡처는 항상 프레임 경계 → CaptureResult 반환 (실제 플레이어 인덱스로 지정)
+    const branch = session.captureBranchFor(0);
     expect(typeof branch.ok).toBe("boolean");
     session.dispose();
   });

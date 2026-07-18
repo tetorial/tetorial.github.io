@@ -105,9 +105,11 @@ test.describe("AW-27 공통 HUD 관측면 — testid·data 속성·레이블 부
 
   test("AW-27 재생 화면: HUD 3요소가 있고 텍스트 레이블·자리표시자가 없다", async ({ page }) => {
     await loadLocal(page);
-    const hold = page.getByTestId("hud-hold");
-    const next = page.getByTestId("hud-next");
-    const counters = page.getByTestId("hud-counters");
+    // 1vs1 ttrm은 두 보드+HUD를 렌더한다(M6-B AW-37) — 첫 보드로 스코프해 HUD 관측면을 본다.
+    const board = page.getByTestId("board-slot").first();
+    const hold = board.getByTestId("hud-hold");
+    const next = board.getByTestId("hud-next");
+    const counters = board.getByTestId("hud-counters");
 
     await expect(hold).toBeVisible();
     await expect(next).toBeVisible();
@@ -126,8 +128,8 @@ test.describe("AW-27 공통 HUD 관측면 — testid·data 속성·레이블 부
     await expect(previews.first()).toHaveAttribute("data-piece", dataNext[0]!);
 
     // "홀드"/"다음" 텍스트 레이블 없음 — 위치로 식별(aria-label은 텍스트가 아니다).
-    await expect(page.locator(".game-hud")).not.toContainText("홀드");
-    await expect(page.locator(".game-hud")).not.toContainText("다음");
+    await expect(board.locator(".game-hud")).not.toContainText("홀드");
+    await expect(board.locator(".game-hud")).not.toContainText("다음");
   });
 
   test("AW-27 시뮬레이터: 같은 HUD, 카운터 비표시면 data 속성 없음", async ({ page }) => {
