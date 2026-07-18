@@ -27,7 +27,11 @@ describe("RD-4 썸네일 (트림된 board 배치·오버레이 포함)", () => {
     try {
       renderThumbnail({ board: { width: 10, rows: [] }, overlays: { highlights: ["H_________"] } });
       const surface = stub.instances[0]!;
-      expect(surface.ctx.fillRects().some((o) => o.fillStyle === DEFAULT_THEME.highlight)).toBe(true);
+      // 하이라이트는 본 렌더와 같은 drawHighlights 경유 — 외곽선 stroke로 그려진다(RD-8, 채움 fillRect 없음)
+      expect(
+        surface.ctx.ops.some((o) => o.op === "stroke" && o.strokeStyle === DEFAULT_THEME.highlight),
+      ).toBe(true);
+      expect(surface.ctx.fillRects().some((o) => o.fillStyle === DEFAULT_THEME.highlight)).toBe(false);
     } finally {
       stub.restore();
     }

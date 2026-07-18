@@ -25,7 +25,10 @@ export type Theme = {
   ghostFill: string;
   /** 고스트 외곽선 색 (falling과 즉시 구분). */
   ghostStroke: string;
-  /** 하이라이트 오버레이 색 — 셀 위 반투명 레이어(물리 무관, 명세 §4-1). */
+  /**
+   * 하이라이트 외곽선 색 — 셀 채움이 아니라 셀 경계 안쪽(inside) 스트로크(RD-8).
+   * 인접 하이라이트끼리 맞닿은 변은 생략되어 묶음의 바깥 윤곽만 남는다(오토 타일링, RD-9).
+   */
   highlight: string;
 };
 

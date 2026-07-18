@@ -1,4 +1,4 @@
-// BoardRenderer 수용 기준 — RD-1·RD-2·RD-3·RD-5·RD-6·RD-7 (구명세 renderer §7).
+// BoardRenderer 수용 기준 — RD-1·RD-2·RD-3·RD-5·RD-6·RD-7 (구명세 renderer §7) + RD-8·RD-9 (하이라이트 외곽선 명세).
 // 그리기 로직은 호출 기록 mock 2D 컨텍스트로 검증(픽셀 스냅샷 아님, 명세 §7).
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
@@ -14,6 +14,64 @@ function fullBoard(totalRows: number): BoardRows {
 
 function fillRectsOf(ctx: MockCanvas["ctx"]): Extract<DrawOp, { op: "fillRect" }>[] {
   return ctx.fillRects();
+}
+
+/** 하이라이트 외곽선 선분 (moveTo→lineTo 한 쌍). */
+type Segment = { x1: number; y1: number; x2: number; y2: number };
+
+/**
+ * color로 stroke된 경로 블록(beginPath~stroke 사이의 moveTo/lineTo 쌍)을 추출한다.
+ * 격자(gridLine) stroke와는 색으로 구분. 하이라이트 stroke 부재 시 null.
+ */
+function highlightStrokeOf(
+  ctx: MockCanvas["ctx"],
+  color: string,
+): { segments: Segment[]; lineWidth: number } | null {
+  const ops = ctx.ops;
+  const strokeIdx = ops.findIndex((o) => o.op === "stroke" && o.strokeStyle === color);
+  if (strokeIdx < 0) return null;
+  let beginIdx = -1;
+  for (let i = strokeIdx - 1; i >= 0; i--) {
+    if (ops[i]?.op === "beginPath") {
+      beginIdx = i;
+      break;
+    }
+  }
+  const segments: Segment[] = [];
+  let pending: { x: number; y: number } | null = null;
+  for (const o of ops.slice(beginIdx + 1, strokeIdx)) {
+    if (o.op === "moveTo") pending = { x: o.x, y: o.y };
+    else if (o.op === "lineTo" && pending) {
+      segments.push({ x1: pending.x, y1: pending.y, x2: o.x, y2: o.y });
+      pending = null;
+    }
+  }
+  const stroke = ops[strokeIdx] as Extract<DrawOp, { op: "stroke" }>;
+  return { segments, lineWidth: stroke.lineWidth };
+}
+
+/**
+ * 셀 (x, y)의 기대 외곽선 선분 집합 — drawHighlights와 동일한 §3 좌표 수식 기준.
+ * edges: 캔버스 기준 상(top)·하(bottom)·좌(left)·우(right) 중 그려야 할 변.
+ */
+function expectedEdges(
+  geo: { cellSize: number; visibleHeight: number; bufferPeek: number },
+  x: number,
+  y: number,
+  edges: ("top" | "bottom" | "left" | "right")[],
+): Segment[] {
+  const { cellSize, visibleHeight, bufferPeek } = geo;
+  const px = x * cellSize;
+  const py = (visibleHeight + bufferPeek - 1 - y) * cellSize;
+  const t = Math.max(1, Math.round(cellSize / 8));
+  const half = t / 2;
+  const all: Record<string, Segment> = {
+    top: { x1: px, y1: py + half, x2: px + cellSize, y2: py + half },
+    bottom: { x1: px, y1: py + cellSize - half, x2: px + cellSize, y2: py + cellSize - half },
+    left: { x1: px + half, y1: py, x2: px + half, y2: py + cellSize },
+    right: { x1: px + cellSize - half, y1: py, x2: px + cellSize - half, y2: py + cellSize },
+  };
+  return edges.map((e) => all[e]!);
 }
 
 describe("RD-1 좌표 왕복 (render가 칠한 사각형 ↔ hitTest 역변환 일치)", () => {
@@ -122,18 +180,19 @@ describe("RD-2 셀 전수 (fillStyle·레이어 순서·D≠G·미지 문자)", 
     const ops = canvas.ctx.ops;
     const bgIdx = ops.findIndex((o) => o.op === "fillRect" && o.fillStyle === DEFAULT_THEME.background);
     const cellIdx = ops.findIndex((o) => o.op === "fillRect" && o.fillStyle === DEFAULT_THEME.cell["G"]);
-    const hlIdx = ops.findIndex((o) => o.op === "fillRect" && o.fillStyle === DEFAULT_THEME.highlight);
+    const hlIdx = ops.findIndex((o) => o.op === "stroke" && o.strokeStyle === DEFAULT_THEME.highlight);
     expect(bgIdx).toBeGreaterThanOrEqual(0);
     expect(cellIdx).toBeGreaterThan(bgIdx);
-    expect(hlIdx).toBeGreaterThan(cellIdx); // 하이라이트는 항상 셀 위
+    expect(hlIdx).toBeGreaterThan(cellIdx); // 하이라이트(외곽선 stroke)는 항상 셀 위
   });
 
   it("하이라이트는 물리 무관 — 빈 칸 위에도 그린다", () => {
     const canvas = new MockCanvas();
     const r = new BoardRenderer(asCanvas(canvas));
     r.render({ board: { width: 10, rows: [] }, overlays: { highlights: ["H_________"] } });
-    const hl = fillRectsOf(canvas.ctx).find((o) => o.fillStyle === DEFAULT_THEME.highlight);
-    expect(hl).toBeDefined();
+    const hl = highlightStrokeOf(canvas.ctx, DEFAULT_THEME.highlight);
+    expect(hl).not.toBeNull();
+    expect(hl!.segments.length).toBeGreaterThan(0);
   });
 
   it("미지의 행 문자 → D 처리 + 심볼당 최초 1회 console.warn (전방 호환)", () => {
@@ -265,9 +324,9 @@ describe("RD-7 테마 (부분 오버라이드·기본 폴백·setOptions 병합)
     const canvas = new MockCanvas();
     const r = new BoardRenderer(asCanvas(canvas), { theme: { highlight: "#abcdef" } });
     r.render({ board: { width: 10, rows: ["GGGGGGGGGG"] }, overlays: { highlights: ["H_________"] } });
-    const ff = fillRectsOf(canvas.ctx);
-    expect(ff.some((o) => o.fillStyle === "#abcdef")).toBe(true); // 오버라이드 반영
-    expect(ff.some((o) => o.fillStyle === DEFAULT_THEME.cell["G"])).toBe(true); // G는 기본 폴백
+    // 오버라이드 반영 — 하이라이트는 외곽선 stroke로 그려진다(RD-8)
+    expect(highlightStrokeOf(canvas.ctx, "#abcdef")).not.toBeNull();
+    expect(fillRectsOf(canvas.ctx).some((o) => o.fillStyle === DEFAULT_THEME.cell["G"])).toBe(true); // G는 기본 폴백
   });
 
   it("setOptions는 현재 테마 위에 부분 병합(기존 오버라이드 유지)", () => {
@@ -275,9 +334,8 @@ describe("RD-7 테마 (부분 오버라이드·기본 폴백·setOptions 병합)
     const r = new BoardRenderer(asCanvas(canvas), { theme: { highlight: "#abcdef" } });
     r.setOptions({ theme: { background: "#000000" } });
     r.render({ board: { width: 10, rows: [] }, overlays: { highlights: ["H_________"] } });
-    const ff = fillRectsOf(canvas.ctx);
-    expect(ff.some((o) => o.fillStyle === "#000000")).toBe(true); // 새 오버라이드
-    expect(ff.some((o) => o.fillStyle === "#abcdef")).toBe(true); // 기존 오버라이드 유지
+    expect(fillRectsOf(canvas.ctx).some((o) => o.fillStyle === "#000000")).toBe(true); // 새 오버라이드
+    expect(highlightStrokeOf(canvas.ctx, "#abcdef")).not.toBeNull(); // 기존 오버라이드 유지
   });
 
   it("테마 미지정 시 기본 테마 사용", () => {
@@ -285,5 +343,140 @@ describe("RD-7 테마 (부분 오버라이드·기본 폴백·setOptions 병합)
     const r = new BoardRenderer(asCanvas(canvas));
     r.render({ board: { width: 10, rows: ["GGGGGGGGGG"] } });
     expect(fillRectsOf(canvas.ctx).some((o) => o.fillStyle === DEFAULT_THEME.background)).toBe(true);
+  });
+});
+
+/** 기본 렌더러 기하 (cellSize 24, 가시 20 + peek 2). */
+const GEO = { cellSize: 24, visibleHeight: 20, bufferPeek: 2 };
+
+describe("RD-8 하이라이트 외곽선 (채움 부재·inside 스트로크·두께·커스텀 색)", () => {
+  it("기본 테마 highlight는 불투명 흰색 #ffffff", () => {
+    expect(DEFAULT_THEME.highlight).toBe("#ffffff");
+  });
+
+  it("단독 셀: 채움 fillRect 부재 + theme.highlight 색·비례 두께의 inside 스트로크", () => {
+    const canvas = new MockCanvas();
+    const r = new BoardRenderer(asCanvas(canvas));
+    r.render({ board: { width: 10, rows: [] }, overlays: { highlights: ["____H_____"] } });
+
+    // 채움 없음 — highlight 색 fillRect가 존재하지 않는다
+    expect(fillRectsOf(canvas.ctx).some((o) => o.fillStyle === DEFAULT_THEME.highlight)).toBe(false);
+
+    const hl = highlightStrokeOf(canvas.ctx, DEFAULT_THEME.highlight);
+    expect(hl).not.toBeNull();
+    // 두께 = max(1, round(24/8)) = 3
+    expect(hl!.lineWidth).toBe(3);
+    // 4변 선분이 기대 좌표(중심선을 half 안쪽으로)와 일치
+    const expected = expectedEdges(GEO, 4, 0, ["top", "bottom", "left", "right"]);
+    expect(hl!.segments).toHaveLength(4);
+    expect(hl!.segments).toEqual(expect.arrayContaining(expected));
+    // inside — 선폭 절반을 감안해도 모든 선분이 셀 경계 [px, px+size]×[py, py+size] 안에 있다
+    const px = 4 * 24;
+    const py = (20 + 2 - 1) * 24;
+    const half = hl!.lineWidth / 2;
+    for (const s of hl!.segments) {
+      for (const cx of [s.x1, s.x2]) expect(cx >= px && cx <= px + 24).toBe(true);
+      for (const cy of [s.y1, s.y2]) expect(cy >= py && cy <= py + 24).toBe(true);
+      if (s.y1 === s.y2) expect(s.y1 >= py + half && s.y1 <= py + 24 - half).toBe(true); // 수평선 중심선
+      if (s.x1 === s.x2) expect(s.x1 >= px + half && s.x1 <= px + 24 - half).toBe(true); // 수직선 중심선
+    }
+  });
+
+  it("선 두께는 cellSize 비례(round(cellSize/8)), 최소 1px", () => {
+    const cases = [
+      { cellSize: 40, expected: 5 },
+      { cellSize: 24, expected: 3 },
+      { cellSize: 8, expected: 1 },
+      { cellSize: 2, expected: 1 }, // round(0.25)=0 → 최소 1 보장
+    ];
+    for (const { cellSize, expected } of cases) {
+      const canvas = new MockCanvas();
+      const r = new BoardRenderer(asCanvas(canvas), { cellSize });
+      r.render({ board: { width: 10, rows: [] }, overlays: { highlights: ["H_________"] } });
+      expect(highlightStrokeOf(canvas.ctx, DEFAULT_THEME.highlight)?.lineWidth).toBe(expected);
+    }
+  });
+
+  it("커스텀 theme.highlight가 스트로크 색에 반영된다 (채움 부재 유지)", () => {
+    const canvas = new MockCanvas();
+    const r = new BoardRenderer(asCanvas(canvas), { theme: { highlight: "#ff00aa" } });
+    r.render({ board: { width: 10, rows: [] }, overlays: { highlights: ["H_________"] } });
+    const hl = highlightStrokeOf(canvas.ctx, "#ff00aa");
+    expect(hl).not.toBeNull();
+    expect(hl!.segments).toHaveLength(4);
+    expect(fillRectsOf(canvas.ctx).some((o) => o.fillStyle === "#ff00aa")).toBe(false);
+  });
+});
+
+describe("RD-9 오토 타일링 (이웃 변 생략·바깥 윤곽·데이터 기준 이웃 판정)", () => {
+  it("단독 셀은 4변 전부 그린다", () => {
+    const canvas = new MockCanvas();
+    const r = new BoardRenderer(asCanvas(canvas));
+    r.render({ board: { width: 10, rows: [] }, overlays: { highlights: ["____H_____"] } });
+    const hl = highlightStrokeOf(canvas.ctx, DEFAULT_THEME.highlight)!;
+    expect(hl.segments).toHaveLength(4);
+    expect(hl.segments).toEqual(
+      expect.arrayContaining(expectedEdges(GEO, 4, 0, ["top", "bottom", "left", "right"])),
+    );
+  });
+
+  it("가로 2연 셀: 맞닿은 변 생략 — 셀당 3변, 공유 경계에 수직 선분 없음", () => {
+    const canvas = new MockCanvas();
+    const r = new BoardRenderer(asCanvas(canvas));
+    r.render({ board: { width: 10, rows: [] }, overlays: { highlights: ["___HH_____"] } });
+    const hl = highlightStrokeOf(canvas.ctx, DEFAULT_THEME.highlight)!;
+    const expected = [
+      ...expectedEdges(GEO, 3, 0, ["top", "bottom", "left"]),
+      ...expectedEdges(GEO, 4, 0, ["top", "bottom", "right"]),
+    ];
+    expect(hl.segments).toHaveLength(6);
+    expect(hl.segments).toEqual(expect.arrayContaining(expected));
+    // 공유 경계(x=4*24) 주변의 수직 선분이 없다 — 셀3 우변·셀4 좌변 생략
+    const boundary = 4 * 24;
+    const half = hl.lineWidth / 2;
+    for (const s of hl.segments) {
+      if (s.x1 === s.x2) {
+        expect(s.x1).not.toBe(boundary - half);
+        expect(s.x1).not.toBe(boundary + half);
+      }
+    }
+  });
+
+  it("ㄱ자 배치: 맞닿은 변만 생략되어 바깥 윤곽만 남는다", () => {
+    const canvas = new MockCanvas();
+    const r = new BoardRenderer(asCanvas(canvas));
+    // (4,0)·(5,0)·(5,1) — ㄱ자. highlights[0]=최하단.
+    r.render({
+      board: { width: 10, rows: [] },
+      overlays: { highlights: ["____HH____", "_____H____"] },
+    });
+    const hl = highlightStrokeOf(canvas.ctx, DEFAULT_THEME.highlight)!;
+    const expected = [
+      ...expectedEdges(GEO, 4, 0, ["top", "bottom", "left"]), // 우변 생략 — (5,0) 이웃
+      ...expectedEdges(GEO, 5, 0, ["bottom", "right"]), // 상변 (5,1)·좌변 (4,0) 생략
+      ...expectedEdges(GEO, 5, 1, ["top", "left", "right"]), // 하변 생략 — (5,0) 이웃
+    ];
+    expect(hl.segments).toHaveLength(8);
+    expect(hl.segments).toEqual(expect.arrayContaining(expected));
+  });
+
+  it("가시 경계 밖 하이라이트 이웃도 이웃 — 경계에서 윤곽이 임의로 닫히지 않는다", () => {
+    const canvas = new MockCanvas();
+    const r = new BoardRenderer(asCanvas(canvas)); // totalRows = 22 → 가시 최상단 y=21
+    // y=21(가시)·y=22(클리핑 영역) 세로 2연 — 이웃 판정은 데이터 기준(RD-9)
+    const highlights = Array.from({ length: 23 }, (_, y) =>
+      y === 21 || y === 22 ? "H_________" : "__________",
+    );
+    r.render({ board: { width: 10, rows: [] }, overlays: { highlights } });
+    const hl = highlightStrokeOf(canvas.ctx, DEFAULT_THEME.highlight)!;
+    // 가시 셀 y=21만 그려지되, 상변은 클리핑된 이웃 y=22 때문에 생략 → 하·좌·우 3변
+    expect(hl.segments).toHaveLength(3);
+    expect(hl.segments).toEqual(
+      expect.arrayContaining(expectedEdges(GEO, 0, 21, ["bottom", "left", "right"])),
+    );
+    // 클리핑 영역(y=22)에는 아무 선분도 없다 — py<0 좌표 부재로 확인
+    for (const s of hl.segments) {
+      expect(Math.min(s.y1, s.y2)).toBeGreaterThanOrEqual(0);
+    }
   });
 });
