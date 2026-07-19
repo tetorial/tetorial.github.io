@@ -329,7 +329,7 @@ export default function ReplayIsland() {
   const showChrome = showsPlaybackChrome(viewMode);
 
   return (
-    <div class="replay-layout" data-testid="replay-loaded">
+    <div class={dual ? "replay-layout dual" : "replay-layout"} data-testid="replay-loaded">
       <div class="replay-main">
         {showChrome ? (
           <>
@@ -575,7 +575,9 @@ const STYLES = `
   .replay-layout { display: grid; grid-template-columns: 1fr var(--sidebar-width); gap: var(--space-5);
     max-width: 72rem; margin: 0 auto; padding: var(--space-5) var(--space-4); }
   .replay-main { display: grid; gap: var(--space-3); }
-  /* 양보드(AW-37): 두 보드+HUD를 가로로 나란히, 사이에 스왑 버튼. 좁은 화면은 세로로 접힌다. */
+  /* 양보드(AW-37): 두 보드+HUD를 가로로 나란히, 사이에 스왑 버튼. 좁은 화면은 세로로 접힌다.
+     양보드는 폭이 72rem 캡을 넘어 wrap이 세로로 접히므로 캡을 넓힌다 — 뷰포트가 좁으면 여전히 접힘. */
+  .replay-layout.dual { max-width: 88rem; }
   .boards { display: flex; gap: var(--space-4); align-items: flex-start; flex-wrap: wrap; }
   .board-slot { flex: none; }
   .swap-boards { align-self: center; flex: none; }
