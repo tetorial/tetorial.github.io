@@ -4,6 +4,8 @@ import {
   collectMarkers,
   collectMarkersForPlayers,
   clusterMarkers,
+  clusterInteraction,
+  markerLabel,
   markerRatio,
   type NoteFileRef,
 } from "./markers.js";
@@ -139,6 +141,56 @@ describe("AW-10 마커 클러스터링(±60프레임)", () => {
       { round: 0, player: 0 },
     );
     expect(clusterMarkers(markers, 60).length).toBe(2);
+  });
+});
+
+// AW-43·44 마커 시각 통합 — 표시·상호작용 헬퍼(데이터 계산 의미론은 불변, 명세 §1).
+describe("AW-43 마커 표시 라벨", () => {
+  it("AW-43 첫 페이지 주석 우선, 없으면 noteId로 폴백", () => {
+    const markers = collectMarkers(
+      [
+        {
+          clientId: "aaaaaaaaaaaa",
+          notes: [
+            replayNote("withcomm", 0, 0, 10, "TSD 셋업"),
+            replayNote("nocomm00", 0, 0, 20),
+          ],
+        },
+      ],
+      { round: 0, player: 0 },
+    );
+    expect(markerLabel(markers[0]!)).toBe("TSD 셋업");
+    expect(markerLabel(markers[1]!)).toBe("nocomm00");
+  });
+});
+
+describe("AW-44 클러스터 상호작용 모드", () => {
+  it("AW-44 노트 1개 클러스터는 single(즉시 열기 대상 마커 반환)", () => {
+    const [cluster] = clusterMarkers(
+      collectMarkers([{ clientId: "aaaaaaaaaaaa", notes: [replayNote("solo0000", 0, 0, 100)] }], {
+        round: 0,
+        player: 0,
+      }),
+    );
+    const it = clusterInteraction(cluster!);
+    expect(it.mode).toBe("single");
+    if (it.mode === "single") expect(it.marker.noteId).toBe("solo0000");
+  });
+
+  it("AW-44 노트 2개 이상 클러스터는 dropdown(구성 노트 전체를 항목으로 반환)", () => {
+    const markers = collectMarkers(
+      [
+        {
+          clientId: "aaaaaaaaaaaa",
+          notes: [replayNote("first000", 0, 0, 100), replayNote("second00", 0, 0, 130)],
+        },
+      ],
+      { round: 0, player: 0 },
+    );
+    const [cluster] = clusterMarkers(markers, 60);
+    const it = clusterInteraction(cluster!);
+    expect(it.mode).toBe("dropdown");
+    if (it.mode === "dropdown") expect(it.items.map((m) => m.noteId)).toEqual(["first000", "second00"]);
   });
 });
 
