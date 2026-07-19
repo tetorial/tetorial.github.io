@@ -17,6 +17,7 @@ import { Sidebar, CollectedNotesBar } from "./replay/Sidebar.tsx";
 import { UploadPanel, ShareBanner } from "./replay/UploadPanel.tsx";
 import { parseDeepLink, buildDeepLink } from "../lib/deeplink.ts";
 import { noteLimitReason } from "../lib/note-limit.ts";
+import { planFork } from "../lib/fork.ts";
 import {
   collectNote,
   hasUnuploaded,
@@ -546,6 +547,16 @@ export default function ReplayIsland() {
           clientId={viewerNote.clientId}
           gistId={typeof loaded.source === "string" ? null : loaded.source.gistId}
           initialPage={viewerNote.page}
+          // fork는 내·타인 노트 모두에서 가능하다(D-8, AW-41). 새 노트 생성이므로 한도 차단이
+          // 분기 진입과 동일하게 적용된다. 진입 성공 시 뷰어를 닫고 시뮬레이터로 인플레이스 전환한다.
+          forkLimitReason={noteLimitReason(loaded.notesFiles)}
+          onFork={(pageId): string | null => {
+            const outcome = planFork(viewerNote.note, pageId, loaded.notesFiles);
+            if (outcome.kind === "blocked") return outcome.reason; // 인라인 안내 — 뷰어 유지
+            setSimEntry(outcome.entry);
+            setViewerNote(null);
+            return null;
+          }}
           {...(canEditNote(
             { isMine: myClientId !== null && viewerNote.clientId === myClientId },
             typeof loaded.source !== "string",

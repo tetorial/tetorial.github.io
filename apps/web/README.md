@@ -45,7 +45,7 @@ src/
 │   │   └── EmptyState.tsx        # 빈 상태·오류 상태 화면
 │   ├── SimulatorPanel.tsx      # 저작 세션 조작(키+포인터·팔레트)·페이지·주석·노트 완성 (업로드 없음 — M3-B)
 │                               # 재생 영역 자리에 놓이는 인플레이스 편집 영역 — 오버레이 모달 아님 (M6-A AW-34)
-│   ├── NoteViewer.tsx          # 노트 열람: createViewerSession 기반 보드 뷰어 + 이어서 편집 (AW-12·13)
+│   ├── NoteViewer.tsx          # 노트 열람: 보드 뷰어 + 이어서 편집(내 노트) + 페이지 fork(내·타인) (AW-12·13·41)
 │   ├── GameHud.tsx             # 공통 게임 HUD — 재생·시뮬레이터·노트 뷰어 3화면 공용 (M5-A AW-26~29)
 │   ├── SettingsPanel.tsx       # 핸들링·키·테마
 │   ├── PiecePreview.tsx        # renderPiecePreview 마운트 — Next·Hold 아이콘 (AW-18)
@@ -63,6 +63,7 @@ src/
     ├── game-hud.ts             # HudModel 계산부 — 재생 뷰·작업 뷰 공용 매핑 (M5-A AW-26~29)
     ├── palette.ts              # 셀 팔레트·포인터 도구 — 선택→Tool·고스트·우클릭·스포이드 (M5-D AW-30~33)
     ├── sim-view.ts             # 재생 ↔ 편집 인플레이스 전환 표시 계약 — 모드 판정·크롬 표시 (M6-A AW-34·35)
+    ├── fork.ts                 # 페이지 fork 진입 계획 — deriveSnapshotFromPage 소비·한도·오류 분기 (M6-C AW-41)
     ├── open-replay.ts          # 로컬/gist 열기 오케스트레이션 + 무결성 게이트 + originalRound (AW-2·AW-4·AW-25)
     ├── handoff.ts              # 홈→리플레이 로컬 파일 1회성 전달(IndexedDB — 대용량 생존, W4)
     ├── playback-session.ts     # N보드 세션 — createPlayback×N + 합성 컨트롤러 + PlaybackClock 셸 (AW-2·38)
@@ -85,7 +86,7 @@ e2e/                            # Playwright 스모크 (Worker·rawUrl 라우트
 **업로드 경로는 하나다.** 시뮬레이터 안에는 업로드가 없다 — 노트 단위 PUT은 M3-B에서 제거됐다.
 
 ```
-분기 / 사이드바 "이어서 편집"
+분기 / 사이드바 "이어서 편집" / 뷰어 "이 페이지에서 시뮬레이션"(fork — 내·타인 노트, AW-41)
         ↓
   SimulatorPanel — "노트 완성"(finishNote) … 노트 단위 한도 위반은 여기서 보고
         ↓  onCollect
@@ -267,6 +268,20 @@ HUD·캔버스 스코프)는 해당 스펙 주석에 사유를 남겼다.
 | AW-38 | 동기 컨트롤 — 한 시계·합성 컨트롤러, 정지 상태 frame 동일, max 슬라이더·짧은 쪽 마지막 상태 유지·범위 밖 seek 무오류 | `dual-playback.test.ts`(`createCompositeController`·`boardFrameAt`) + `e2e/m6b` |
 | AW-39 | 보드 스왑 — 화면 배치 스왑(`displayOrder`), 분기 진입은 왼쪽 보드만(`leftBoardIndex`) | `dual-playback.test.ts` + `e2e/m6b` |
 | AW-40 | 노트 호환 — `origin.player`는 실제 플레이어 인덱스, 스왑 무관·마커 합집합 | `dual-playback.test.ts`·`markers.test.ts`(`collectMarkersForPlayers`) + `e2e/m6b` |
+
+## 수용 기준 (AW-41 — M6-C 노트 페이지 fork 진입)
+
+브랜치 한정 명세 `docs/specs/m6c-page-fork.md`의 수용 기준이다(#58). 노트 페이지(내·타인 모두)의
+"이 페이지에서 시뮬레이션"으로 새 노트 저작 세션을 연다 — fork는 참조가 아니라 복사다(D-8):
+`@tetorial/sim`의 `deriveSnapshotFromPage`를 **현 형상 그대로 소비**해 파생 스냅샷·origin(원본 노트
+origin의 깊은 복사)을 만들고, 원본 노트는 무수정으로 둔다. 노트 id는 웹이 CSPRNG로 주입한다(D-20).
+새 노트 생성이므로 노트 생성 한도 차단이 분기 진입과 동일하게 적용되고, `queue-exhausted`(진입 페이지의
+`current === null`)는 인라인 안내로 소화한다(alert·모달 금지 — AW-22). 진입 계획의 순수 판정
+(`lib/fork.ts` — 진입 매핑·한도·오류 분기)은 유닛이, 실브라우저 진입·안내는 `e2e/m6c-fork.spec.ts`가 고정한다.
+
+| ID | 검증 | 위치 |
+| --- | --- | --- |
+| AW-41 | 페이지 fork 진입 — 내·타인 노트에서 새 노트 세션(스냅샷·origin 복사·원본 무수정), queue-exhausted 인라인 안내, 노트 생성 한도 차단 | `fork.test.ts`(`planFork`) + `e2e/m6c-fork` |
 
 ## 수용 기준 (AW-42 ~ AW-44 — M6-C 슬라이더·마커 시각 통합)
 

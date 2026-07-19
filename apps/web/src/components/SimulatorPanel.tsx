@@ -29,13 +29,15 @@ import type { Storage } from "../lib/storage.ts";
 import type { HandlingConfig, KeyBindings } from "@tetorial/input";
 import type { CaptureResult } from "@tetorial/adapter-tetrio";
 import type { Tool } from "@tetorial/sim";
-import type { Note } from "@tetorial/types";
+import type { Note, Origin, Snapshot } from "@tetorial/types";
 
 /** BoardCanvas에 넘기는 고정 셀 크기 — 고스트 스냅 계산도 이 값을 공유한다(AW-31). */
 const CELL_SIZE = 26;
 
-/** 시뮬레이터 진입 경로 — 리플레이 분기(신규 노트) 또는 내 노트 이어서 편집(AW-13).
-    분기 실패는 진입 전에 인라인 안내로 소화된다(AW-22) — 성공 변형만 도달할 수 있다. */
+/** 시뮬레이터 진입 경로 — 리플레이 분기(신규 노트) · 내 노트 이어서 편집(AW-13) · 페이지 fork(AW-41).
+    분기 실패는 진입 전에 인라인 안내로 소화된다(AW-22) — 성공 변형만 도달할 수 있다.
+    fork도 마찬가지로 한도·queue-exhausted를 진입 전에 소화하므로(lib/fork.ts), 여기 도달하는
+    fork는 항상 파생 성공분(snapshot·origin은 원본 노트의 복사 — D-8)이다. */
 export type SimEntry =
   | {
       kind: "branch";
@@ -44,7 +46,8 @@ export type SimEntry =
       round: number;
       player: number;
     }
-  | { kind: "existing"; note: Note };
+  | { kind: "existing"; note: Note }
+  | { kind: "fork"; snapshot: Snapshot; origin: Origin };
 
 interface Props {
   storage: Storage;
@@ -86,9 +89,18 @@ export default function SimulatorPanel(props: Props) {
     } else {
       const clientId = props.storage.getOrCreateClientId();
       const myFile = props.loaded.notesFiles.find((f) => f.clientId === clientId);
+      // 신규 노트 경로(분기·fork)는 origin·snapshot을 값으로 받아 진입한다. fork는 파생값을
+      // 그대로 쓰고(원본 노트 origin의 복사 — D-8), 분기는 리플레이 좌표로 origin을 조립한다.
+      const { origin, snapshot } =
+        entry.kind === "fork"
+          ? { origin: entry.origin, snapshot: entry.snapshot }
+          : {
+              origin: branchOrigin(props.loaded, entry.round, entry.player, entry.frame),
+              snapshot: entry.branch.snapshot,
+            };
       init = {
-        origin: branchOrigin(props.loaded, entry.round, entry.player, entry.frame),
-        snapshot: entry.branch.snapshot,
+        origin,
+        snapshot,
         // 파일의 기존 노트 + 아직 안 올린 수집 노트 모두와 id가 겹치지 않아야 한다.
         existingNoteIds: [...(myFile?.notes.map((n) => n.id) ?? []), ...props.collectedNoteIds],
       };
