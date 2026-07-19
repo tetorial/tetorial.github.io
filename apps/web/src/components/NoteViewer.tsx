@@ -17,18 +17,46 @@ interface Props {
   initialPage?: number | null;
   /** 내 노트면 편집 진입 핸들러, 아니면 undefined(타인 노트는 열람 전용 — AW-13). */
   onEdit?: () => void;
+  /** 현재 페이지에서 fork(새 노트) 진입(AW-41). 내·타인 노트 모두 노출 — 진입 실패 시 안내
+      문구를 반환해 인라인 표시하고(queue-exhausted 등), 성공 시 null(부모가 뷰어를 닫는다). */
+  onFork?: (pageId: string) => string | null;
+  /** 노트 합산 한도 도달 시 fork 차단 사유(분기와 동일 적용 — AW-41). null이면 정상 진입. */
+  forkLimitReason?: string | null;
   onClose: () => void;
 }
 
-export default function NoteViewer({ note, clientId, gistId, initialPage, onEdit, onClose }: Props) {
+export default function NoteViewer({
+  note,
+  clientId,
+  gistId,
+  initialPage,
+  onEdit,
+  onFork,
+  forkLimitReason,
+  onClose,
+}: Props) {
   const viewer = useMemo(() => createNoteViewer(note, initialPage), [note, initialPage]);
   const [, force] = useState(0);
+  /** fork 진입 실패 인라인 안내(AW-41 — alert·모달 금지). 페이지 이동 시 해제된다. */
+  const [forkNotice, setForkNotice] = useState<string | null>(null);
 
   useEffect(() => viewer.subscribe(() => force((n) => n + 1)), [viewer]);
+
+  // 페이지가 바뀌면 지난 안내(특정 페이지의 queue-exhausted 등)는 현재 상태가 아니다 — 해제한다.
+  useEffect(() => {
+    setForkNotice(null);
+  }, [viewer.index]);
 
   const view = viewer.view;
   const page = viewer.current;
   const total = viewer.pages.length;
+
+  // fork 진입(AW-41) — 현재 페이지를 부모에 넘긴다. 성공이면 부모가 뷰어를 닫고, 실패면(한도·
+  // queue-exhausted) 반환된 문구를 인라인 안내로 표시한다(뷰어는 정상 유지).
+  const doFork = (): void => {
+    if (!onFork || !page) return;
+    setForkNotice(onFork(page.id));
+  };
 
   const copyLink = (): void => {
     if (!gistId) return;
@@ -95,12 +123,30 @@ export default function NoteViewer({ note, clientId, gistId, initialPage, onEdit
               이어서 편집
             </button>
           )}
+          {/* fork는 내·타인 노트 모두에서 가능하다(D-8) — "이어서 편집"(내 노트 한정)과 공존한다.
+              페이지가 있을 때만 노출한다(view===null이면 fork할 페이지가 없다). */}
+          {onFork && view !== null && (
+            <button
+              class="btn"
+              data-testid="vm-fork"
+              onClick={doFork}
+              disabled={forkLimitReason != null}
+            >
+              이 페이지에서 시뮬레이션
+            </button>
+          )}
           {gistId && (
             <button class="btn" onClick={copyLink} data-testid="copy-page-link">
               이 페이지 링크 복사
             </button>
           )}
         </div>
+        {/* 진입 차단 안내는 인라인(AW-41·AW-22). 한도(상시)·queue-exhausted(클릭 시) 모두 여기 표기. */}
+        {(forkLimitReason != null || forkNotice) && (
+          <p class="vm-fork-notice" role="status" data-testid="vm-fork-notice">
+            {forkLimitReason ?? forkNotice}
+          </p>
+        )}
       </div>
       <style>{`
         .viewer-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4);
@@ -113,6 +159,7 @@ export default function NoteViewer({ note, clientId, gistId, initialPage, onEdit
         .vm-body { display: grid; grid-template-columns: auto 1fr; gap: var(--space-5); }
         .vm-side { display: grid; gap: var(--space-3); align-content: start; }
         .vm-comment { white-space: pre-wrap; margin: 0; }
+        .vm-fork-notice { color: var(--color-warn); font-size: var(--text-sm); margin: 0; }
         .vm-nav, .vm-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
         @media (max-width: 48rem) { .vm-body { grid-template-columns: 1fr; } }
       `}</style>

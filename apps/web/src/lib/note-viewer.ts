@@ -19,8 +19,9 @@ export function createNoteViewer(note: Note, initialPage?: number | null): Viewe
 
 /**
  * 이 노트에 "이어서 편집" 진입을 제공할지(AW-13). 자기 노트만 편집할 수 있고(editKey 소유),
- * 타인 노트는 열람 전용이다 — fork UI는 범위 밖(소유자 확인 2026-07-17, D-8).
- * 편집 결과는 노트 수를 늘리지 않으므로(같은 id upsert) 생성 한도 차단 대상이 아니다.
+ * 타인 노트는 열람 전용이다 — 같은 id upsert이므로 노트 수를 늘리지 않아 생성 한도 차단 대상이 아니다.
+ * fork("이 페이지에서 시뮬레이션", AW-41)는 이와 별개다 — 내·타인 노트 모두에서 새 노트를 만들며
+ * (D-8), 한도 차단 대상이다(lib/fork.ts).
  */
 export function canEditNote(entry: Pick<SidebarEntry, "isMine">, hasGist: boolean): boolean {
   return entry.isMine && hasGist;
