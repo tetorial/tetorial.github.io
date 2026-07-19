@@ -41,7 +41,8 @@ test("AW-4 gist 열기: mock index·rawUrl 무결성 통과 → 재생", async (
   // 경로형 딥링크(M1d-1) — 비표준 id "g1"은 원문 통과(fallback)로 해석된다.
   await page.goto("/replays/g1");
   await expect(page.getByTestId("replay-loaded")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("board-canvas")).toBeVisible();
+  // 1vs1 ttrm은 두 보드를 렌더하므로 첫 보드로 스코프한다(M6-B 양보드 재생 — AW-37).
+  await expect(page.getByTestId("board-canvas").first()).toBeVisible();
 });
 
 test("AW-4 gist 404 → 오류 문구 + 홈 링크", async ({ page }) => {

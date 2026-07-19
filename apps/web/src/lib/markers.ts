@@ -51,6 +51,22 @@ export function collectMarkers(
 }
 
 /**
+ * 여러 플레이어(양보드 재생 — M6-B AW-40)의 replay 진입 노트를 한 타임라인에 모은다.
+ * 각 플레이어는 자기 origin.player로 필터되므로(collectMarkers), 스왑 상태와 무관하게 노트는
+ * 항상 실제 플레이어 인덱스 기준으로 귀속된다 — 마커·사이드바는 한 벌이되 어느 보드의 노트든
+ * 깨지지 않는다(명세 §3·§4). 합친 뒤 프레임·clientId·noteId 순으로 재정렬해 클러스터 전제를 만족한다.
+ */
+export function collectMarkersForPlayers(
+  files: readonly NoteFileRef[],
+  round: number,
+  players: readonly number[],
+): NoteMarker[] {
+  const all = players.flatMap((player) => collectMarkers(files, { round, player }));
+  all.sort((a, b) => a.frame - b.frame || cmp(a.clientId, b.clientId) || cmp(a.noteId, b.noteId));
+  return all;
+}
+
+/**
  * 인접 마커 간 프레임 간격이 threshold(기본 60) 이하면 같은 클러스터로 묶는다.
  * 정렬된 마커를 전제로 하며, 클러스터 표시 프레임은 구성 마커 프레임의 평균(반올림)이다.
  */

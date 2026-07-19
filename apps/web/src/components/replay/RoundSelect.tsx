@@ -1,52 +1,35 @@
-// 라운드·플레이어 선택 + 지원 배지 (ReplayIsland 분해 — M4-C AW-23, #46).
-// 라운드 표시 번호는 originalRound 헬퍼 한 경로만 쓴다(AW-25, #47).
+// 라운드 선택 + 지원 배지 (구 RoundPlayerSelect — M6-B로 플레이어 셀렉터 제거).
+// 1vs1은 두 플레이어 보드를 동시에 재생하므로 플레이어 셀렉터가 사라졌다(명세 §3, AW-37) —
+// 라운드 선택만 남는다. 라운드 표시 번호는 originalRound 헬퍼 한 경로만 쓴다(AW-25, #47).
 import { originalRound, type LoadedReplay } from "../../lib/open-replay.ts";
 import type { supportReport } from "@tetorial/replay-tetrio";
 
-export function RoundPlayerSelect({
+export function RoundSelect({
   doc,
   roundMap,
   round,
-  player,
   onChange,
 }: {
   doc: LoadedReplay["doc"];
   roundMap: number[];
   round: number;
-  player: number;
-  onChange: (r: number, p: number) => void;
+  onChange: (r: number) => void;
 }) {
-  const players = doc.rounds[round] ?? [];
+  if (doc.rounds.length <= 1) return null;
   return (
     <div class="rp-select">
-      {doc.rounds.length > 1 && (
-        <label>
-          라운드
-          <select
-            value={round}
-            data-testid="round-select"
-            onChange={(e) => onChange(Number((e.target as HTMLSelectElement).value), 0)}
-          >
-            {doc.rounds.map((_, i) => (
-              <option value={i}>R{originalRound(roundMap, i) + 1}</option>
-            ))}
-          </select>
-        </label>
-      )}
-      {players.length > 1 && (
-        <label>
-          플레이어
-          <select
-            value={player}
-            data-testid="player-select"
-            onChange={(e) => onChange(round, Number((e.target as HTMLSelectElement).value))}
-          >
-            {players.map((pl, i) => (
-              <option value={i}>{pl.username || `P${i + 1}`}</option>
-            ))}
-          </select>
-        </label>
-      )}
+      <label>
+        라운드
+        <select
+          value={round}
+          data-testid="round-select"
+          onChange={(e) => onChange(Number((e.target as HTMLSelectElement).value))}
+        >
+          {doc.rounds.map((_, i) => (
+            <option value={i}>R{originalRound(roundMap, i) + 1}</option>
+          ))}
+        </select>
+      </label>
       <style>{STYLES}</style>
     </div>
   );

@@ -10,7 +10,7 @@ import NoteViewer from "./NoteViewer.tsx";
 import SettingsPanel from "./SettingsPanel.tsx";
 import SimulatorPanel, { type SimEntry } from "./SimulatorPanel.tsx";
 import { EmptyState, ErrorState } from "./replay/EmptyState.tsx";
-import { RoundPlayerSelect, SupportBadge } from "./replay/RoundPlayerSelect.tsx";
+import { RoundSelect, SupportBadge } from "./replay/RoundSelect.tsx";
 import { PlaybackControls } from "./replay/PlaybackControls.tsx";
 import { BranchBar } from "./replay/BranchBar.tsx";
 import { Sidebar, CollectedNotesBar } from "./replay/Sidebar.tsx";
@@ -35,7 +35,8 @@ import { WorkerError } from "../lib/worker-client.ts";
 import { createPlaybackSession, type PlaybackSession } from "../lib/playback-session.ts";
 import { playbackFrame } from "../lib/view-frame.ts";
 import { playbackHud } from "../lib/game-hud.ts";
-import { collectMarkers, clusterMarkers, type NoteFileRef } from "../lib/markers.ts";
+import { collectMarkersForPlayers, clusterMarkers, type NoteFileRef } from "../lib/markers.ts";
+import { roundTargets, displayOrder, leftBoardIndex } from "../lib/dual-playback.ts";
 import { applyUploadedFile, flattenSidebar, resolveNoteCandidates } from "../lib/notes-loading.ts";
 import { toDisplayError, type DisplayError } from "../lib/errors.ts";
 import { replayViewMode, showsPlaybackChrome } from "../lib/sim-view.ts";
@@ -59,7 +60,8 @@ export default function ReplayIsland() {
   const loadedRef = useRef<LoadedReplay | null>(null);
   const sessionRef = useRef<PlaybackSession | null>(null);
   const [round, setRound] = useState(0);
-  const [player, setPlayer] = useState(0);
+  // 양보드는 실제 플레이어 인덱스 순으로 재생하고, 스왑은 화면 배치만 바꾼다(AW-39·40).
+  const [swapped, setSwapped] = useState(false);
 
   const [settings, setSettings] = useState<{ handling: HandlingConfig; keys: KeyBindings }>(() =>
     loadSettings(storage),
@@ -140,22 +142,20 @@ export default function ReplayIsland() {
   const startLoaded = (loaded: LoadedReplay): void => {
     loadedRef.current = loaded;
     setRound(0);
-    setPlayer(0);
-    buildSession(loaded, 0, 0);
+    setSwapped(false);
+    buildSession(loaded, 0);
     setPhase("loaded");
   };
 
-  const buildSession = (loaded: LoadedReplay, r: number, p: number): void => {
+  // 라운드의 재생 대상(1vs1은 두 플레이어, 솔로는 1명)을 한 시계로 구동하는 세션을 만든다(AW-37·38).
+  const buildSession = (loaded: LoadedReplay, r: number): void => {
     sessionRef.current?.dispose();
-    sessionRef.current = createPlaybackSession(
-      loaded.doc,
-      { round: r, player: p },
-      {
-        now: () => performance.now(),
-        schedule: (cb) => requestAnimationFrame(cb),
-        cancel: (h) => cancelAnimationFrame(h),
-      },
-    );
+    const playerCount = loaded.doc.rounds[r]?.length ?? 1;
+    sessionRef.current = createPlaybackSession(loaded.doc, roundTargets(r, playerCount), {
+      now: () => performance.now(),
+      schedule: (cb) => requestAnimationFrame(cb),
+      cancel: (h) => cancelAnimationFrame(h),
+    });
   };
 
   // 미업로드 수집 노트가 있으면 이탈 시 경고만 한다(AW-15) — 수집함은 메모리 전용이라
@@ -185,13 +185,13 @@ export default function ReplayIsland() {
     return () => cancelAnimationFrame(raf);
   }, [phase, simActive, rerender]);
 
-  const changeRoundPlayer = (r: number, p: number): void => {
+  const changeRound = (r: number): void => {
     const loaded = loadedRef.current;
     if (!loaded) return;
     setRound(r);
-    setPlayer(p);
+    setSwapped(false); // 라운드가 바뀌면 스왑 배치를 초기화한다(보드 구성이 새로 잡힌다)
     setBranchNotice(null); // 다른 지점으로 이동 — 지난 분기 불가 안내는 현재 상태가 아니다
-    buildSession(loaded, r, p);
+    buildSession(loaded, r);
   };
 
   // 업로드 성공(POST /g) → 소스를 gist로 승격, 경로형 URL 전환(M1d-1), 공유 배너 표시(§3-B).
@@ -295,18 +295,29 @@ export default function ReplayIsland() {
   }
   if (!session || !loaded) return null;
 
-  const entry = loaded.doc.rounds[round]?.[player];
+  // 지원 배지는 방(라운드) 단위 설정 판정 — 첫 플레이어 엔트리로 대표한다(1vs1은 두 플레이어가
+  // 같은 방 설정을 공유한다).
+  const entry = loaded.doc.rounds[round]?.[0];
   const support = entry ? supportReport(entry) : null;
-  const view = session.view;
 
-  // 마커 (현재 원본 라운드·플레이어)
+  // 양보드 배치: 세션의 boards는 실제 플레이어 인덱스 순, 스왑은 화면 순서만 바꾼다(AW-39·40).
+  const boards = session.boards;
+  const dual = boards.length > 1;
+  const order = displayOrder(boards.length, swapped);
+  const leftBoard = boards[leftBoardIndex(boards.length, swapped)]!;
+
+  // 마커 (현재 원본 라운드 — 표시 중인 모든 플레이어의 노트를 한 타임라인에 모은다, AW-40).
   const noteFileRefs: NoteFileRef[] = loaded.notesFiles.map((f) => ({
     clientId: f.clientId,
     authorName: f.authorName,
     notes: f.notes,
   }));
   const originalRoundNum = originalRound(loaded, round);
-  const markers = collectMarkers(noteFileRefs, { round: originalRoundNum, player });
+  const markers = collectMarkersForPlayers(
+    noteFileRefs,
+    originalRoundNum,
+    boards.map((b) => b.player),
+  );
   const clusters = clusterMarkers(markers);
   const myClientId = storage.peekClientId();
   const sidebar = flattenSidebar(loaded.notesFiles, myClientId);
@@ -318,17 +329,16 @@ export default function ReplayIsland() {
   const showChrome = showsPlaybackChrome(viewMode);
 
   return (
-    <div class="replay-layout" data-testid="replay-loaded">
+    <div class={dual ? "replay-layout dual" : "replay-layout"} data-testid="replay-loaded">
       <div class="replay-main">
         {showChrome ? (
           <>
             <div class="topbar">
-              <RoundPlayerSelect
+              <RoundSelect
                 doc={loaded.doc}
                 roundMap={loaded.roundMap}
                 round={round}
-                player={player}
-                onChange={changeRoundPlayer}
+                onChange={changeRound}
               />
               <div class="topbar-actions">
                 {typeof loaded.source === "string" && (
@@ -356,10 +366,33 @@ export default function ReplayIsland() {
 
             {support && <SupportBadge support={support} />}
 
-            {/* 재생 HUD(AW-29) — 위의 rAF 재렌더 루프가 보드와 함께 매 프레임 갱신한다(추가 루프 없음). */}
-            <GameHud model={playbackHud(view)}>
-              <BoardCanvas frame={playbackFrame(view)} />
-            </GameHud>
+            {/* 양보드 재생(AW-37) — 표시 순서(order)는 스왑을 반영하되, 각 보드가 나타내는 실제
+                플레이어(b.player)는 불변이다(AW-40). 스왑 버튼은 두 보드 사이에 둔다(AW-39).
+                재생 HUD는 위의 rAF 재렌더 루프가 보드와 함께 매 프레임 갱신한다(추가 루프 없음). */}
+            <div class="boards" data-testid="replay-boards" data-dual={dual ? "true" : "false"}>
+              {order.map((idx, pos) => {
+                const b = boards[idx]!;
+                return (
+                  <>
+                    {pos > 0 && dual && (
+                      <button
+                        class="btn swap-boards"
+                        data-testid="swap-boards"
+                        aria-label="두 보드 좌우 교체"
+                        onClick={() => setSwapped((s) => !s)}
+                      >
+                        ⇄
+                      </button>
+                    )}
+                    <div class="board-slot" data-testid="board-slot" data-player={b.player}>
+                      <GameHud model={playbackHud(b.view)}>
+                        <BoardCanvas frame={playbackFrame(b.view)} />
+                      </GameHud>
+                    </div>
+                  </>
+                );
+              })}
+            </div>
 
             <PlaybackControls
               session={session}
@@ -372,7 +405,9 @@ export default function ReplayIsland() {
 
             <BranchBar
               onBranch={() => {
-                const result = session.captureBranch();
+                // 분기 진입은 왼쪽 보드만 허용한다(AW-39). player·frame은 현재 왼쪽에 놓인 보드의
+                // 실제 플레이어 인덱스·자기 프레임이다 — 스왑을 그대로 반영한다(AW-40).
+                const result = session.captureBranchFor(leftBoard.player);
                 if (!result.ok) {
                   // 실패는 여기서 인라인 안내로 소화한다(AW-22) — SimulatorPanel에는 성공만 넘어간다.
                   setBranchNotice(`분기 불가: ${result.reason}`);
@@ -382,9 +417,9 @@ export default function ReplayIsland() {
                 setSimEntry({
                   kind: "branch",
                   branch: result,
-                  frame: session.frame,
+                  frame: leftBoard.frame,
                   round,
-                  player,
+                  player: leftBoard.player,
                 });
               }}
               hasGist={typeof loaded.source !== "string"}
@@ -409,7 +444,7 @@ export default function ReplayIsland() {
               onExit={() => {
                 const entry = simEntry;
                 setSimEntry(null);
-                buildSession(loaded, round, player);
+                buildSession(loaded, round);
                 // 분기 진입이었다면 새 세션(프레임 0)을 분기 지점으로 되돌린다(§3-D "분기 프레임 복귀", 결함3).
                 if (entry.kind === "branch") sessionRef.current?.seek(entry.frame);
               }}
@@ -540,6 +575,12 @@ const STYLES = `
   .replay-layout { display: grid; grid-template-columns: 1fr var(--sidebar-width); gap: var(--space-5);
     max-width: 72rem; margin: 0 auto; padding: var(--space-5) var(--space-4); }
   .replay-main { display: grid; gap: var(--space-3); }
+  /* 양보드(AW-37): 두 보드+HUD를 가로로 나란히, 사이에 스왑 버튼. 좁은 화면은 세로로 접힌다.
+     양보드는 폭이 72rem 캡을 넘어 wrap이 세로로 접히므로 캡을 넓힌다 — 뷰포트가 좁으면 여전히 접힘. */
+  .replay-layout.dual { max-width: 88rem; }
+  .boards { display: flex; gap: var(--space-4); align-items: flex-start; flex-wrap: wrap; }
+  .board-slot { flex: none; }
+  .swap-boards { align-self: center; flex: none; }
   .topbar { display: flex; justify-content: space-between; align-items: center; }
   .topbar-actions { display: flex; gap: var(--space-2); }
   .board-canvas { border: 1px solid var(--color-border); border-radius: var(--radius-sm);
