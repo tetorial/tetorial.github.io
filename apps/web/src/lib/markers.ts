@@ -96,6 +96,26 @@ export function markerRatio(frame: number, totalFrames: number): number {
   return Math.min(1, Math.max(0, frame / totalFrames));
 }
 
+/** 마커 1개의 표시 라벨(드롭다운 항목·접근성 라벨) — 첫 페이지 주석 우선, 없으면 noteId (AW-43·44). */
+export function markerLabel(m: NoteMarker): string {
+  return m.firstComment ?? m.noteId;
+}
+
+/**
+ * 클러스터의 상호작용 모드(AW-44) — 노트 1개는 클릭 즉시 열기(`single`), 2개 이상은 호버/포커스
+ * 드롭다운으로 선택 열기(`dropdown`). **데이터 계산이 아니라 표시·상호작용 결정만** 한다
+ * (명세 §1 — clusterMarkers·markerRatio의 의미론은 불변).
+ */
+export type ClusterInteraction =
+  | { readonly mode: "single"; readonly marker: NoteMarker }
+  | { readonly mode: "dropdown"; readonly items: readonly NoteMarker[] };
+
+export function clusterInteraction(cluster: MarkerCluster): ClusterInteraction {
+  return cluster.markers.length > 1
+    ? { mode: "dropdown", items: cluster.markers }
+    : { mode: "single", marker: cluster.markers[0]! };
+}
+
 function finishCluster(markers: NoteMarker[]): MarkerCluster {
   const sum = markers.reduce((acc, m) => acc + m.frame, 0);
   return { frame: Math.round(sum / markers.length), markers: [...markers] };

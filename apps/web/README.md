@@ -68,7 +68,7 @@ src/
     ├── playback-session.ts     # N보드 세션 — createPlayback×N + 합성 컨트롤러 + PlaybackClock 셸 (AW-2·38)
     ├── dual-playback.ts        # 양보드 순수 로직 — 대상 선택·합성 컨트롤러·스왑 매핑 (M6-B AW-37~40)
     ├── notes-loading.ts        # notes-*.json 로드·사이드바 평탄화·딥링크 후보 (AW-4·AW-10)
-    ├── markers.ts              # 타임라인 노트 마커 배치·클러스터 + 양보드 합집합 (AW-10·40)
+    ├── markers.ts              # 타임라인 노트 마커 배치·클러스터 + 양보드 합집합 + 표시·상호작용 헬퍼 (AW-10·40·43·44)
     ├── simulator.ts            # 저작 세션 + input 배선(suspend) (AW-5)
     ├── upload.ts               # 라운드 발췌 → MetaFile 조립 + 용량 추정 (AW-3)
     ├── worker-client.ts        # PUBLIC_WORKER_URL fetch 래퍼 + zod 응답 검증 (§4)
@@ -267,3 +267,18 @@ HUD·캔버스 스코프)는 해당 스펙 주석에 사유를 남겼다.
 | AW-38 | 동기 컨트롤 — 한 시계·합성 컨트롤러, 정지 상태 frame 동일, max 슬라이더·짧은 쪽 마지막 상태 유지·범위 밖 seek 무오류 | `dual-playback.test.ts`(`createCompositeController`·`boardFrameAt`) + `e2e/m6b` |
 | AW-39 | 보드 스왑 — 화면 배치 스왑(`displayOrder`), 분기 진입은 왼쪽 보드만(`leftBoardIndex`) | `dual-playback.test.ts` + `e2e/m6b` |
 | AW-40 | 노트 호환 — `origin.player`는 실제 플레이어 인덱스, 스왑 무관·마커 합집합 | `dual-playback.test.ts`·`markers.test.ts`(`collectMarkersForPlayers`) + `e2e/m6b` |
+
+## 수용 기준 (AW-42 ~ AW-44 — M6-C 슬라이더·마커 시각 통합)
+
+브랜치 한정 명세 `docs/specs/m6c-slider-markers.md`의 수용 기준이다(#56). 재생 슬라이더 핸들과 노트 마커를
+한 디자인 언어로 통합하고, 클러스터를 드롭다운 선택으로 바꾼다. 마커 **데이터 계산**(`clusterMarkers`·
+`markerRatio`)의 의미론은 불변이고, 표시·상호작용만 바뀐다(`markers.ts`에 순수 헬퍼 `markerLabel`·
+`clusterInteraction` 추가). 형태(AW-42·43)는 스타일 계약 유닛(`PlaybackControls.test.ts`) + 실렌더 관측
+`e2e/m6c-markers.spec.ts`로, 상호작용(AW-44)은 순수 판정 유닛(`markers.test.ts`) + 실브라우저 호버·클릭
+`e2e/m6c-markers.spec.ts`로 고정한다.
+
+| ID | 검증 | 위치 |
+| --- | --- | --- |
+| AW-42 | 슬라이더 핸들 — 원형 네이티브 핸들을 세로 직사각형 커스텀(`::-webkit-slider-thumb`·`::-moz-range-thumb`)으로 교체 | `PlaybackControls.test.ts`(STYLES 계약) + `e2e/m6c-markers`(appearance 리셋) |
+| AW-43 | 마커 화살촉 — 원형 대신 위로 뾰족한 화살촉(clip-path 다각형), 슬라이더와 토큰 통합·클러스터 수 식별 유지 | `PlaybackControls.test.ts`·`markers.test.ts`(`markerLabel`) + `e2e/m6c-markers` |
+| AW-44 | 클러스터 드롭다운 — 노트 2개 이상은 호버/포커스 드롭다운 선택 열기, 단일 마커는 클릭 즉시 열기 | `markers.test.ts`(`clusterInteraction`) + `e2e/m6c-markers`(호버·항목 클릭) |
